@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('app', {
   saveGroups: (groups) => ipcRenderer.invoke('save-groups', groups),
   getGroupSubs: () => ipcRenderer.invoke('get-group-subs'),
   saveGroupSubs: (subs) => ipcRenderer.invoke('save-group-subs', subs),
-  createChromeProfile: (name, groups, notes) => ipcRenderer.invoke('create-chrome-profile', name, groups, notes),
+  createChromeProfile: (name, groups, subGroups, notes) => ipcRenderer.invoke('create-chrome-profile', name, groups, subGroups, notes),
   getAvatarDataUrl: (p) => ipcRenderer.invoke('get-avatar-data-url', p),
   getCacheSize: (profilePath) => ipcRenderer.invoke('get-cache-size', profilePath),
   getAllCacheSizes: () => ipcRenderer.invoke('get-all-cache-sizes'),
@@ -26,4 +26,8 @@ contextBridge.exposeInMainWorld('app', {
   clearAllCache: () => ipcRenderer.invoke('clear-all-cache'),
   removeBadExtensions: () => ipcRenderer.invoke('remove-bad-extensions'),
   getProfileHistory: (profilePath) => ipcRenderer.invoke('get-profile-history', profilePath),
+  getGoogleAccounts: (profilePath) => ipcRenderer.invoke('get-google-accounts', profilePath),
+  getSocialStatus: (profilePath, sites) => ipcRenderer.invoke('get-social-status', profilePath, sites),
+  getSocialSites: () => ipcRenderer.invoke('get-social-sites'),
+  saveSocialSites: (sites) => ipcRenderer.invoke('save-social-sites', sites),
 });

@@ -9,14 +9,16 @@ const configStore = require('./src/configStore');
 const storage = require('./src/storage');
 const extensions = require('./src/extensions');
 const history = require('./src/history');
+const accounts = require('./src/accounts');
+const social = require('./src/socialAccounts');
 
 let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1100,
+    width: 1280,
     height: 800,
-    minWidth: 900,
+    minWidth: 960,
     minHeight: 640,
     title: 'Chrome Shortcut Manager',
     icon: path.join(__dirname, 'assets', 'icon.ico'),
@@ -38,7 +40,7 @@ app.whenReady().then(() => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// ── Scan ───────────────────────────────────────────────────
+// Scan
 ipcMain.handle('scan-profiles', async () => {
   const config = configStore.getConfig();
   const customPath = config.settings?.chromeUserDataPath || null;
@@ -58,19 +60,18 @@ ipcMain.handle('scan-profiles', async () => {
         subGroups: saved.subGroups || {},
         notes: saved.notes || '',
         hasShortcut: shortcuts.shortcutExists(shortcutName),
-        cacheSize: null
+        cacheSize: null,
+        googleAccounts: accounts.getGoogleAccounts(p.profilePath),
       };
     }),
     userDataPath
   };
 });
 
-// ── Profile config ─────────────────────────────────────────
 ipcMain.handle('save-profile-config', async (_, profileDirectory, data) => {
   return configStore.saveProfileConfig(profileDirectory, data);
 });
 
-// ── Check duplicate name ────────────────────────────────────
 ipcMain.handle('check-duplicate-name', async (_, profileDirectory, name) => {
   if (!name || !name.trim()) return { isDuplicate: false };
   const config = configStore.getConfig();
@@ -84,7 +85,6 @@ ipcMain.handle('check-duplicate-name', async (_, profileDirectory, name) => {
   return { isDuplicate: false };
 });
 
-// ── Delete Chrome profile ───────────────────────────────────
 ipcMain.handle('delete-chrome-profile', async (_, profilePath, profileDirectory, displayName) => {
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
@@ -99,9 +99,7 @@ ipcMain.handle('delete-chrome-profile', async (_, profilePath, profileDirectory,
   if (response !== 1) return { success: false, cancelled: true };
 
   try {
-    if (fs.existsSync(profilePath)) {
-      fs.rmSync(profilePath, { recursive: true, force: true });
-    }
+    if (fs.existsSync(profilePath)) fs.rmSync(profilePath, { recursive: true, force: true });
     configStore.deleteProfileConfig(profileDirectory);
     return { success: true };
   } catch (err) {
@@ -109,20 +107,16 @@ ipcMain.handle('delete-chrome-profile', async (_, profilePath, profileDirectory,
   }
 });
 
-// ── Kill all Chrome ─────────────────────────────────────────
 ipcMain.handle('kill-all-chrome', async () => {
   return new Promise(resolve => {
-    exec('taskkill /IM chrome.exe /T', (err, stdout, stderr) => {
-      if (err && err.code !== 128) {
-        resolve({ success: false, error: 'Không thể đóng Chrome: ' + err.message });
-      } else {
-        resolve({ success: true });
-      }
+    exec('taskkill /F /IM chrome.exe /T', (err, stdout, stderr) => {
+      const output = (stdout + stderr).toLowerCase();
+      const notFound = output.includes('not found') || output.includes('không tìm thấy') || (err && err.code === 128);
+      resolve({ success: true, notFound });
     });
   });
 });
 
-// ── Shortcuts ──────────────────────────────────────────────
 ipcMain.handle('create-shortcut', async (_, profileDirectory, shortcutName) => {
   try {
     const lnkPath = shortcuts.createShortcut({ profileDirectory, shortcutName });
@@ -171,7 +165,6 @@ ipcMain.handle('open-profiles-batch', async (_, profileDirectories) => {
 
 ipcMain.handle('check-shortcut-exists', async (_, name) => shortcuts.shortcutExists(name));
 
-// ── Chọn thư mục thủ công ─────────────────────────────────
 ipcMain.handle('pick-user-data-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Chọn thư mục Chrome User Data',
@@ -186,14 +179,12 @@ ipcMain.handle('pick-user-data-folder', async () => {
 
 ipcMain.handle('get-settings', async () => configStore.getConfig().settings || {});
 
-// ── Nhóm ──────────────────────────────────────────────────
 ipcMain.handle('get-groups', async () => configStore.getGroups());
 ipcMain.handle('save-groups', async (_, groups) => configStore.saveGroups(groups));
 ipcMain.handle('get-group-subs', async () => configStore.getGroupSubs());
 ipcMain.handle('save-group-subs', async (_, groupSubs) => configStore.saveGroupSubs(groupSubs));
 
-// ── Tạo Chrome profile mới ─────────────────────────────────
-ipcMain.handle('create-chrome-profile', async (_, friendlyName, groups, notes) => {
+ipcMain.handle('create-chrome-profile', async (_, friendlyName, groups, subGroups, notes) => {
   try {
     const config = configStore.getConfig();
     const { userDataPath } = chromeProfiles.scanProfiles(config.settings?.chromeUserDataPath || null);
@@ -201,6 +192,7 @@ ipcMain.handle('create-chrome-profile', async (_, friendlyName, groups, notes) =
     const saveData = {};
     if (friendlyName && friendlyName.trim()) saveData.shortcutName = friendlyName.trim();
     if (Array.isArray(groups) && groups.length) saveData.groups = groups;
+    if (subGroups && Object.keys(subGroups).length) saveData.subGroups = subGroups;
     if (notes && notes.trim()) saveData.notes = notes.trim();
     if (Object.keys(saveData).length) configStore.saveProfileConfig(newDir, saveData);
     shortcuts.openProfile(newDir);
@@ -210,7 +202,6 @@ ipcMain.handle('create-chrome-profile', async (_, friendlyName, groups, notes) =
   }
 });
 
-// ── Avatar ─────────────────────────────────────────────────
 ipcMain.handle('get-avatar-data-url', async (_, avatarPath) => {
   try {
     if (!avatarPath || !fs.existsSync(avatarPath)) return null;
@@ -218,19 +209,14 @@ ipcMain.handle('get-avatar-data-url', async (_, avatarPath) => {
   } catch { return null; }
 });
 
-// ── Storage / Cache ────────────────────────────────────────
-ipcMain.handle('get-cache-size', async (_, profilePath) => {
-  return storage.getProfileCacheSize(profilePath);
-});
+ipcMain.handle('get-cache-size', async (_, profilePath) => storage.getProfileCacheSize(profilePath));
 
 ipcMain.handle('get-all-cache-sizes', async () => {
   const config = configStore.getConfig();
   const customPath = config.settings?.chromeUserDataPath || null;
   const { profiles } = chromeProfiles.scanProfiles(customPath);
   const result = {};
-  for (const p of profiles) {
-    result[p.profileDirectory] = storage.getProfileCacheSize(p.profilePath);
-  }
+  for (const p of profiles) result[p.profileDirectory] = storage.getProfileCacheSize(p.profilePath);
   return result;
 });
 
@@ -255,7 +241,6 @@ ipcMain.handle('clear-all-cache', async () => {
   return { success: true, freed: totalFreed, freedText: storage.formatBytes(totalFreed), errorCount };
 });
 
-// ── Xóa tiện ích McAfee / IDM ─────────────────────────────
 ipcMain.handle('remove-bad-extensions', async () => {
   const config = configStore.getConfig();
   const customPath = config.settings?.chromeUserDataPath || null;
@@ -273,13 +258,27 @@ ipcMain.handle('remove-bad-extensions', async () => {
     if (removed > 0) results.push({ name: shortcutName, removed });
   }
 
-  // Also clean registry (runs in background, won't fail the response)
   extensions.removeFromRegistryAsync().catch(() => {});
-
   return { success: true, totalRemoved, skipped, results };
 });
 
-// ── Lịch sử duyệt web ─────────────────────────────────────
 ipcMain.handle('get-profile-history', async (_, profilePath) => {
   return history.getProfileHistory(profilePath, 25);
+});
+
+ipcMain.handle('get-google-accounts', async (_, profilePath) => {
+  return accounts.getGoogleAccounts(profilePath);
+});
+
+ipcMain.handle('get-social-status', async (_, profilePath, sites) => {
+  return social.getSocialStatus(profilePath, sites);
+});
+
+ipcMain.handle('get-social-sites', async () => {
+  return configStore.getSocialSites() || social.DEFAULT_SOCIAL_SITES;
+});
+
+ipcMain.handle('save-social-sites', async (_, sites) => {
+  configStore.saveSocialSites(sites);
+  return true;
 });

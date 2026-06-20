@@ -76,6 +76,13 @@ function saveGroupSubs(groupSubs) {
   return save(config);
 }
 
+function getSocialSites() { return load().socialSites || null; }
+function saveSocialSites(sites) {
+  const config = load();
+  config.socialSites = sites;
+  return save(config);
+}
+
 function getConfig() { return load(); }
 
 module.exports = {
@@ -84,6 +91,7 @@ module.exports = {
   saveSettings,
   getGroups, saveGroups,
   getGroupSubs, saveGroupSubs,
+  getSocialSites, saveSocialSites,
   getConfig,
   DEFAULT_GROUPS
 };

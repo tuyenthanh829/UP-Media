@@ -12,7 +12,7 @@
 
 <!-- Modal: Quản lý nhóm -->
 <div id="modal-groups" class="modal-overlay hidden">
-  <div class="modal">
+  <div class="modal" style="width:520px">
     <div class="modal-header">
       <h2>Quản lý nhóm</h2>
       <button class="modal-close" id="modal-groups-close">&times;</button>
@@ -33,7 +33,7 @@
 
 <!-- Modal: Tạo profile mới -->
 <div id="modal-new-profile" class="modal-overlay hidden">
-  <div class="modal" style="width:480px">
+  <div class="modal" style="width:500px">
     <div class="modal-header">
       <h2>Tạo tài khoản Chrome mới</h2>
       <button class="modal-close" id="modal-new-profile-close">&times;</button>
@@ -44,8 +44,8 @@
         <input type="text" id="new-profile-name" class="form-input" placeholder="VD: Seeding 01, Ads TPL..." maxlength="50" />
       </div>
       <div>
-        <div class="form-label" style="margin-bottom:6px">Nhóm</div>
-        <div id="new-profile-groups-row" class="groups-row" style="min-height:30px;border:1px solid var(--border);border-radius:7px;padding:5px 8px"></div>
+        <div class="form-label" style="margin-bottom:6px">Nhóm &amp; danh mục con</div>
+        <div id="new-profile-groups-row" class="new-profile-groups-row"></div>
       </div>
       <div class="form-row" style="align-items:flex-start">
         <label class="form-label" style="padding-top:4px">Ghi chú</label>
@@ -75,6 +75,66 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" id="btn-close-history">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Gmail accounts -->
+<div id="modal-gmail" class="modal-overlay hidden">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>Tài khoản Gmail — <span id="gmail-profile-name"></span></h2>
+      <button class="modal-close" id="modal-gmail-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="gmail-list" class="gmail-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="btn-close-gmail">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Social accounts -->
+<div id="modal-social" class="modal-overlay hidden">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>Mạng xã hội — <span id="social-profile-name"></span></h2>
+      <button class="modal-close" id="modal-social-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="social-loading" style="text-align:center;padding:24px;color:var(--muted)">
+        <div class="spinner-sm"></div> Đang kiểm tra cookie...
+      </div>
+      <div id="social-list" class="social-list" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" id="btn-manage-social-sites">⚙ Quản lý site</button>
+      <button class="btn btn-outline" id="btn-close-social">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Manage social sites -->
+<div id="modal-manage-sites" class="modal-overlay hidden">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <h2>Quản lý site mạng xã hội</h2>
+      <button class="modal-close" id="modal-manage-sites-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Kiểm tra đăng nhập dựa trên tên cookie phiên làm việc. Cookie name sai sẽ không phát hiện được đăng nhập.</p>
+      <ul id="sites-list" class="sites-list"></ul>
+      <div class="sites-add-row">
+        <input type="text" id="new-site-name" class="form-input" placeholder="Tên site (vd: Zalo)" style="flex:1.2" maxlength="30"/>
+        <input type="text" id="new-site-domain" class="form-input" placeholder="Domain (vd: zalo.me)" style="flex:2" maxlength="80"/>
+        <input type="text" id="new-site-cookie" class="form-input" placeholder="Cookie name" style="flex:1.5" maxlength="60"/>
+        <button class="btn btn-primary btn-sm" id="btn-add-site">+ Thêm</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-success" id="btn-save-sites">Lưu</button>
+      <button class="btn btn-outline" id="btn-cancel-sites">Hủy</button>
     </div>
   </div>
 </div>
@@ -168,41 +228,50 @@
       Đóng Chrome
     </button>
   </div>
-  <div class="toolbar-filters">
+  <div class="toolbar-search">
     <div class="search-box">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-      <input type="text" id="search-input" placeholder="Tìm kiếm..." />
-    </div>
-    <div class="group-filter-wrap" id="group-filter-wrap">
-      <button class="btn btn-outline group-filter-btn" id="group-filter-btn">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
-        <span id="group-filter-label">Tất cả nhóm</span>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:2px"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      <div class="group-filter-dropdown hidden" id="group-filter-dropdown"></div>
+      <input type="text" id="search-input" placeholder="Tìm theo tên, email, nhóm, ghi chú..." />
     </div>
   </div>
 </div>
 
-<!-- Main -->
-<main class="main">
-  <div class="empty-state" id="empty-state">
-    <div class="empty-icon"><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></div>
-    <h3 id="empty-title">Chưa có profile nào</h3>
-    <p id="empty-desc">Bấm <strong>"Quét lại"</strong> để tìm các tài khoản Chrome</p>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px">
-      <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">Quét profile Chrome</button>
-      <button class="btn btn-secondary" id="btn-pick-folder">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-        Chọn thư mục thủ công
-      </button>
+<!-- Content area: sidebar + main -->
+<div class="content-area">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Lọc nhóm</div>
+      <div id="sidebar-groups"></div>
     </div>
-  </div>
-  <div class="profile-grid" id="profile-grid" style="display:none"></div>
-  <div class="loading" id="loading" style="display:none">
-    <div class="spinner"></div><p>Đang quét profile Chrome...</p>
-  </div>
-</main>
+    <div class="sidebar-section" id="sidebar-login-section">
+      <div class="sidebar-title">Lọc đăng nhập</div>
+      <div id="sidebar-login-filters"></div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon"><svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></div>
+      <h3 id="empty-title">Chưa có profile nào</h3>
+      <p id="empty-desc">Bấm <strong>"Quét lại"</strong> để tìm các tài khoản Chrome</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px">
+        <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">Quét profile Chrome</button>
+        <button class="btn btn-secondary" id="btn-pick-folder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          Chọn thư mục thủ công
+        </button>
+      </div>
+    </div>
+    <div class="profile-grid" id="profile-grid" style="display:none"></div>
+    <div class="loading" id="loading" style="display:none">
+      <div class="spinner"></div><p>Đang quét profile Chrome...</p>
+    </div>
+  </main>
+
+</div>
 
 <script src="renderer.js"></script>
 </body>

@@ -1,12 +1,14 @@
+// ── State ─────────────────────────────────────────────────
 let allProfiles = [];
 let allGroups = [];
-let allGroupSubs = {}; // { "Seeding": ["T1","T2"] }
-let activeGroupFilters = new Set();
+let allGroupSubs = {};
+let socialSitesConfig = [];
+let profileSocialCache = {}; // { dir: { siteId: {loggedIn,name} } }
 let currentFiltered = [];
+let activeSidebarFilter = null; // { type:'group'|'sub'|'login', group?, sub?, loginType? }
 
 const DEFAULT_GROUPS = ['Seeding', 'Ads', 'BM', 'Khách hàng', 'Cá nhân', 'Khác'];
 
-// ── Group helpers ─────────────────────────────────────────
 const BUILTIN_CLASS = {
   'Seeding':'seeding','Ads':'ads','BM':'bm',
   'Khách hàng':'khachhang','Cá nhân':'canhan','Khác':'khac'
@@ -18,43 +20,9 @@ function avatarClass(groups) {
 }
 function avatarLetter(name) { return (name || '?').charAt(0).toUpperCase(); }
 
-// ── Multi-group filter ────────────────────────────────────
-function buildGroupFilterDropdown() {
-  const dd = document.getElementById('group-filter-dropdown');
-  dd.innerHTML = '';
-
-  const allItem = document.createElement('div');
-  allItem.className = `gf-item${activeGroupFilters.size === 0 ? ' selected' : ''}`;
-  allItem.innerHTML = `<span class="gf-check">${activeGroupFilters.size === 0 ? '✓' : ''}</span> Tất cả nhóm`;
-  allItem.addEventListener('click', e => {
-    e.stopPropagation();
-    activeGroupFilters.clear();
-    buildGroupFilterDropdown(); updateGroupFilterLabel(); applyFilter();
-  });
-  dd.appendChild(allItem);
-  dd.appendChild(Object.assign(document.createElement('div'), { className: 'gf-divider' }));
-
-  allGroups.forEach(g => {
-    const selected = activeGroupFilters.has(g);
-    const item = document.createElement('div');
-    item.className = `gf-item${selected ? ' selected' : ''}`;
-    item.innerHTML = `<span class="gf-check">${selected ? '✓' : ''}</span> ${eh(g)}`;
-    item.addEventListener('click', e => {
-      e.stopPropagation();
-      if (activeGroupFilters.has(g)) activeGroupFilters.delete(g); else activeGroupFilters.add(g);
-      buildGroupFilterDropdown(); updateGroupFilterLabel(); applyFilter();
-    });
-    dd.appendChild(item);
-  });
-}
-
-function updateGroupFilterLabel() {
-  const label = document.getElementById('group-filter-label');
-  const btn = document.getElementById('group-filter-btn');
-  if (activeGroupFilters.size === 0) { label.textContent = 'Tất cả nhóm'; btn.classList.remove('active'); }
-  else if (activeGroupFilters.size === 1) { label.textContent = [...activeGroupFilters][0]; btn.classList.add('active'); }
-  else { label.textContent = `${activeGroupFilters.size} nhóm`; btn.classList.add('active'); }
-}
+// ── Sanitize ──────────────────────────────────────────────
+function eh(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ea(s) { return String(s||'').replace(/"/g,'&quot;'); }
 
 // ── Toast ─────────────────────────────────────────────────
 let _toastT;
@@ -88,6 +56,148 @@ function fmtTime(ms) {
   return d.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
 
+// ── Sidebar ───────────────────────────────────────────────
+function countForGroup(g) { return allProfiles.filter(p=>(p.groups||[]).includes(g)).length; }
+function countForSub(g, sub) { return allProfiles.filter(p=>(p.groups||[]).includes(g)&&(p.subGroups||{})[g]===sub).length; }
+function countHasGmail() { return allProfiles.filter(p=>(p.googleAccounts||[]).length>0).length; }
+function countHasSocial() {
+  return allProfiles.filter(p=>{
+    const sc = profileSocialCache[p.profileDirectory];
+    return sc && Object.values(sc).some(s=>s.loggedIn);
+  }).length;
+}
+
+function renderSidebar() {
+  const sg = document.getElementById('sidebar-groups');
+  sg.innerHTML = '';
+
+  // "Tất cả"
+  const allEl = document.createElement('div');
+  allEl.className = `sidebar-item${!activeSidebarFilter ? ' active' : ''}`;
+  allEl.innerHTML = `<span>Tất cả</span><span class="sidebar-count">${allProfiles.length}</span>`;
+  allEl.addEventListener('click', () => { activeSidebarFilter = null; renderSidebar(); applyFilter(); });
+  sg.appendChild(allEl);
+
+  // Groups
+  allGroups.forEach(g => {
+    const cnt = countForGroup(g);
+    const subs = allGroupSubs[g] || [];
+    const isGroupActive = activeSidebarFilter?.type==='group' && activeSidebarFilter?.group===g;
+
+    const gEl = document.createElement('div');
+    gEl.className = `sidebar-item${isGroupActive ? ' active' : ''}`;
+    gEl.innerHTML = `
+      <span class="group-tag gc-${groupClass(g)}" style="padding:1px 6px;font-size:10px">${eh(g)}</span>
+      <span style="flex:1"></span>
+      <span class="sidebar-count">${cnt}</span>
+    `;
+    gEl.addEventListener('click', () => {
+      activeSidebarFilter = { type: 'group', group: g };
+      renderSidebar(); applyFilter();
+    });
+    sg.appendChild(gEl);
+
+    // Sub-groups
+    if (subs.length) {
+      const subWrap = document.createElement('div');
+      subWrap.className = 'sidebar-sub';
+      subs.forEach(sub => {
+        const subCnt = countForSub(g, sub);
+        const isSubActive = activeSidebarFilter?.type==='sub' && activeSidebarFilter?.group===g && activeSidebarFilter?.sub===sub;
+        const sEl = document.createElement('div');
+        sEl.className = `sidebar-item${isSubActive ? ' active' : ''}`;
+        sEl.innerHTML = `<span>· ${eh(sub)}</span><span class="sidebar-count">${subCnt}</span>`;
+        sEl.addEventListener('click', e => {
+          e.stopPropagation();
+          activeSidebarFilter = { type: 'sub', group: g, sub };
+          renderSidebar(); applyFilter();
+        });
+        subWrap.appendChild(sEl);
+      });
+      sg.appendChild(subWrap);
+    }
+  });
+
+  // Login filters
+  const sl = document.getElementById('sidebar-login-filters');
+  sl.innerHTML = '';
+
+  const gmailCnt = countHasGmail();
+  const gmailActive = activeSidebarFilter?.type==='login' && activeSidebarFilter?.loginType==='gmail';
+  const gmailEl = document.createElement('div');
+  gmailEl.className = `sidebar-item${gmailActive ? ' active' : ''}`;
+  gmailEl.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+    <span>Có Gmail</span>
+    <span class="sidebar-count">${gmailCnt}</span>
+  `;
+  gmailEl.addEventListener('click', () => {
+    activeSidebarFilter = { type: 'login', loginType: 'gmail' };
+    renderSidebar(); applyFilter();
+  });
+  sl.appendChild(gmailEl);
+
+  const socialCnt = countHasSocial();
+  const socialActive = activeSidebarFilter?.type==='login' && activeSidebarFilter?.loginType==='social';
+  const socialEl = document.createElement('div');
+  socialEl.className = `sidebar-item${socialActive ? ' active' : ''}`;
+  socialEl.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Có Social</span>
+    <span class="sidebar-count">${socialCnt}</span>
+  `;
+  socialEl.addEventListener('click', async () => {
+    activeSidebarFilter = { type: 'login', loginType: 'social' };
+    renderSidebar();
+    // Load social data for profiles not yet cached
+    const needed = allProfiles.filter(p => !profileSocialCache[p.profileDirectory]);
+    if (needed.length) {
+      socialEl.textContent = '⏳ Đang tải...';
+      for (const p of needed) {
+        profileSocialCache[p.profileDirectory] = await window.app.getSocialStatus(p.profilePath, socialSitesConfig);
+      }
+      renderSidebar();
+    }
+    applyFilter();
+  });
+  sl.appendChild(socialEl);
+}
+
+// ── Filter ────────────────────────────────────────────────
+function applyFilter() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const f = activeSidebarFilter;
+
+  const filtered = allProfiles.filter(p => {
+    // Sidebar filter
+    let matchSidebar = true;
+    if (f) {
+      if (f.type === 'group') {
+        matchSidebar = (p.groups||[]).includes(f.group);
+      } else if (f.type === 'sub') {
+        matchSidebar = (p.groups||[]).includes(f.group) && (p.subGroups||{})[f.group] === f.sub;
+      } else if (f.type === 'login' && f.loginType === 'gmail') {
+        matchSidebar = (p.googleAccounts||[]).length > 0;
+      } else if (f.type === 'login' && f.loginType === 'social') {
+        const sc = profileSocialCache[p.profileDirectory];
+        matchSidebar = !!(sc && Object.values(sc).some(s=>s.loggedIn));
+      }
+    }
+
+    // Search
+    const matchQ = !q || [
+      p.profileDirectory, p.shortcutName, p.chromeProfileName,
+      ...(p.groups||[]), p.email, p.notes,
+      ...(p.googleAccounts||[]).map(a=>a.email),
+      ...(p.googleAccounts||[]).map(a=>a.fullName),
+    ].some(v => (v||'').toLowerCase().includes(q));
+
+    return matchSidebar && matchQ;
+  });
+
+  renderProfiles(filtered);
+}
+
 // ── Avatar ────────────────────────────────────────────────
 async function buildAvatarEl(profile) {
   const ac = avatarClass(profile.groups);
@@ -105,7 +215,7 @@ async function buildAvatarEl(profile) {
   return el;
 }
 
-// ── Group tags UI ─────────────────────────────────────────
+// ── Group tags on card ────────────────────────────────────
 function buildGroupTags(profile, card) {
   const row = card.querySelector('.groups-row');
   row.innerHTML = '';
@@ -115,20 +225,17 @@ function buildGroupTags(profile, card) {
     const tag = document.createElement('span');
     tag.className = `group-tag gc-${groupClass(g)}`;
     const subHtml = sub ? `<span class="group-tag-sub">· ${eh(sub)}</span>` : '';
-    tag.innerHTML = `${eh(g)}${subHtml}<span class="remove-tag" data-group="${ea(g)}" title="Xóa khỏi nhóm này">&times;</span>`;
+    tag.innerHTML = `${eh(g)}${subHtml}<span class="remove-tag" data-group="${ea(g)}" title="Xóa khỏi nhóm">&times;</span>`;
     tag.querySelector('.remove-tag').addEventListener('click', async () => {
       profile.groups = profile.groups.filter(x => x !== g);
-      const subs = { ...profile.subGroups };
-      delete subs[g];
-      profile.subGroups = subs;
+      const subs = { ...profile.subGroups }; delete subs[g]; profile.subGroups = subs;
       await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
-      buildGroupTags(profile, card);
-      refreshAvatarInCard(card, profile);
+      buildGroupTags(profile, card); refreshAvatarInCard(card, profile);
     });
     row.appendChild(tag);
   });
 
-  // Add group button + dropdown
+  // Add group dropdown
   const wrap = document.createElement('div');
   wrap.className = 'group-dropdown';
   const addBtn = document.createElement('button');
@@ -143,12 +250,11 @@ function buildGroupTags(profile, card) {
     const subs = allGroupSubs[g] || [];
     const item = document.createElement('div');
     item.className = `group-dropdown-item${selected ? ' selected' : ''}`;
-    item.innerHTML = `<span class="check">${selected ? '✓' : ''}</span>${eh(g)}${subs.length ? ' ▸' : ''}`;
+    item.innerHTML = `<span class="check">${selected ? '✓' : ''}</span>${eh(g)}${subs.length && !selected ? '<span style="margin-left:auto;opacity:.5">▸</span>' : ''}`;
 
     if (subs.length && !selected) {
-      // Sub-menu on hover
       const subMenu = document.createElement('div');
-      subMenu.className = 'group-dropdown-menu group-sub-menu';
+      subMenu.className = 'group-sub-menu';
       subs.forEach(sub => {
         const subItem = document.createElement('div');
         subItem.className = 'group-dropdown-item';
@@ -159,15 +265,19 @@ function buildGroupTags(profile, card) {
           profile.subGroups = { ...(profile.subGroups||{}), [g]: sub };
           await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
           menu.classList.remove('open');
-          buildGroupTags(profile, card);
-          refreshAvatarInCard(card, profile);
+          buildGroupTags(profile, card); refreshAvatarInCard(card, profile);
         });
         subMenu.appendChild(subItem);
       });
       item.style.position = 'relative';
       item.appendChild(subMenu);
-      item.addEventListener('mouseenter', () => subMenu.classList.add('open'));
-      item.addEventListener('mouseleave', () => subMenu.classList.remove('open'));
+
+      // Fix hover gap with timer
+      let _t;
+      item.addEventListener('mouseenter', () => { clearTimeout(_t); subMenu.classList.add('open'); });
+      item.addEventListener('mouseleave', () => { _t = setTimeout(() => subMenu.classList.remove('open'), 180); });
+      subMenu.addEventListener('mouseenter', () => clearTimeout(_t));
+      subMenu.addEventListener('mouseleave', () => { subMenu.classList.remove('open'); });
     } else {
       item.addEventListener('click', async e => {
         e.stopPropagation();
@@ -179,8 +289,7 @@ function buildGroupTags(profile, card) {
         }
         await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
         menu.classList.remove('open');
-        buildGroupTags(profile, card);
-        refreshAvatarInCard(card, profile);
+        buildGroupTags(profile, card); refreshAvatarInCard(card, profile);
       });
     }
     menu.appendChild(item);
@@ -198,16 +307,32 @@ function refreshAvatarInCard(card, profile) {
   });
 }
 
+// ── Social icon ───────────────────────────────────────────
+const SOCIAL_ICONS = {
+  facebook: '📘', instagram: '📷', x: '🐦', tiktok: '🎵',
+  threads: '🧵', linkedin: '💼', chotot: '🛍️'
+};
+function socialIcon(id) { return SOCIAL_ICONS[id] || '🌐'; }
+
 // ── Build card ────────────────────────────────────────────
 async function buildCard(profile) {
   const card = document.createElement('div');
   card.className = 'profile-card';
   card.dataset.profileDir = profile.profileDirectory;
 
-  const emailLine = profile.email ? `<div class="email">${eh(profile.email)}</div>` : '';
-  const hasNote = !!(profile.notes && profile.notes.trim());
+  const gmailCount = (profile.googleAccounts || []).length;
+  const socialCache = profileSocialCache[profile.profileDirectory];
+  const socialCount = socialCache ? Object.values(socialCache).filter(s=>s.loggedIn).length : null;
+  const socialLabel = socialCount === null ? '?' : socialCount;
+  const socialClass = (socialCount === null || socialCount === 0) ? 'empty' : '';
+  const gmailClass = gmailCount === 0 ? 'empty' : '';
 
   card.innerHTML = `
+    <button class="btn-del-profile" data-dir="${ea(profile.profileDirectory)}" data-path="${ea(profile.profilePath)}" title="Xóa tài khoản Chrome này">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+      <span class="del-text">Xóa tài khoản</span>
+    </button>
+
     <div class="card-header">
       <div class="card-profile-id">
         <div class="avatar-wrap"></div>
@@ -217,7 +342,6 @@ async function buildCard(profile) {
             <span class="folder-id">${eh(profile.profileDirectory)}</span>
             ${profile.chromeProfileName && profile.chromeProfileName !== profile.profileDirectory
               ? `<span>${eh(profile.chromeProfileName)}</span>` : ''}
-            ${emailLine}
           </div>
         </div>
       </div>
@@ -227,6 +351,17 @@ async function buildCard(profile) {
     </div>
 
     <div class="groups-row"></div>
+
+    <div class="account-badges">
+      <button class="badge-btn badge-gmail ${gmailClass}" data-dir="${ea(profile.profileDirectory)}" title="Xem tài khoản Gmail">
+        <span class="badge-icon">✉️</span>
+        <span class="gmail-badge-count">${gmailCount}</span> Gmail
+      </button>
+      <button class="badge-btn badge-social ${socialClass}" data-dir="${ea(profile.profileDirectory)}" data-path="${ea(profile.profilePath)}" title="Xem tài khoản mạng xã hội">
+        <span class="badge-icon">🔗</span>
+        <span class="social-badge-count">${socialLabel}</span> Social
+      </button>
+    </div>
 
     <div class="card-form">
       <div class="form-row">
@@ -247,11 +382,11 @@ async function buildCard(profile) {
     </div>
 
     <div class="notes-section">
-      <div class="notes-toggle ${hasNote ? 'open' : ''}">
+      <div class="notes-toggle ${profile.notes ? 'open' : ''}">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
-        Ghi chú${hasNote ? '<span class="notes-dot"></span>' : ''}
+        Ghi chú${profile.notes ? '<span class="notes-dot"></span>' : ''}
       </div>
-      <div class="notes-area ${hasNote ? 'open' : ''}">
+      <div class="notes-area ${profile.notes ? 'open' : ''}">
         <textarea class="notes-textarea" placeholder="Ghi chú quan trọng..." data-dir="${ea(profile.profileDirectory)}">${eh(profile.notes||'')}</textarea>
       </div>
     </div>
@@ -271,13 +406,9 @@ async function buildCard(profile) {
       <button class="btn btn-danger btn-icon btn-delete" data-dir="${ea(profile.profileDirectory)}" title="Xóa shortcut Desktop" ${!profile.hasShortcut?'disabled':''}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="9" y1="7" x2="15" y2="13"/><line x1="15" y1="7" x2="9" y2="13"/></svg>
       </button>
-      <button class="btn btn-outline btn-icon btn-del-profile" data-dir="${ea(profile.profileDirectory)}" data-path="${ea(profile.profilePath)}" title="XÓA tài khoản Chrome này vĩnh viễn" style="color:var(--danger);margin-left:auto">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-      </button>
     </div>
   `;
 
-  // Avatar
   buildAvatarEl(profile).then(el => card.querySelector('.avatar-wrap').replaceWith(el));
   buildGroupTags(profile, card);
 
@@ -303,7 +434,6 @@ async function buildCard(profile) {
     e.currentTarget.classList.toggle('open');
     card.querySelector('.notes-area').classList.toggle('open');
   });
-
   card.querySelector('.notes-textarea').addEventListener('blur', async e => {
     const notes = e.target.value;
     const p = allProfiles.find(x => x.profileDirectory === e.target.dataset.dir);
@@ -312,17 +442,16 @@ async function buildCard(profile) {
     await window.app.saveProfileConfig(e.target.dataset.dir, { notes });
     const toggle = card.querySelector('.notes-toggle');
     const dot = toggle.querySelector('.notes-dot');
-    if (notes.trim() && !dot) { const d = document.createElement('span'); d.className='notes-dot'; toggle.appendChild(d); }
+    if (notes.trim() && !dot) { const d=document.createElement('span'); d.className='notes-dot'; toggle.appendChild(d); }
     else if (!notes.trim() && dot) dot.remove();
   });
 
-  // Rename with duplicate check
+  // Name with duplicate check
   card.querySelector('.input-name').addEventListener('blur', async e => {
     const name = e.target.value.trim();
     const dir = e.target.dataset.dir;
     const p = allProfiles.find(x => x.profileDirectory === dir);
     if (!p) return;
-    // Check duplicate
     const warn = document.getElementById(`warn-${dir}`);
     const dup = await window.app.checkDuplicateName(dir, name);
     if (dup.isDuplicate) { if (warn) warn.classList.add('show'); return; }
@@ -337,7 +466,20 @@ async function buildCard(profile) {
     if (warn) warn.classList.remove('show');
   });
 
-  // Open profile
+  // Gmail badge
+  card.querySelector('.badge-gmail').addEventListener('click', () => {
+    openGmailModal(profile);
+  });
+
+  // Social badge
+  card.querySelector('.badge-social').addEventListener('click', async e => {
+    const dir = e.currentTarget.dataset.dir;
+    const pPath = e.currentTarget.dataset.path;
+    const p = allProfiles.find(x => x.profileDirectory === dir);
+    await openSocialModal(p, pPath);
+  });
+
+  // Open
   card.querySelector('.btn-open').addEventListener('click', async e => {
     const res = await window.app.openProfile(e.currentTarget.dataset.dir);
     if (res.success) showToast('Đang mở Chrome profile...', 'info');
@@ -358,15 +500,11 @@ async function buildCard(profile) {
     const p = allProfiles.find(x => x.profileDirectory === dir);
     if (!p) return;
     const name = p.shortcutName || p.chromeProfileName || p.profileDirectory;
-    // Check duplicate name before creating
     const dup = await window.app.checkDuplicateName(dir, name);
-    if (dup.isDuplicate) { showToast(`Tên "${name}" đã được dùng bởi profile khác!`, 'warning'); return; }
+    if (dup.isDuplicate) { showToast(`Tên "${name}" đã được dùng!`, 'warning'); return; }
     const res = await window.app.createShortcut(dir, name);
-    if (res.success) {
-      p.hasShortcut = true;
-      showToast(`Đã tạo shortcut "${name}"!`, 'success');
-      refreshCardStatus(card, p); updateStats(allProfiles);
-    } else showToast(res.error, 'error');
+    if (res.success) { p.hasShortcut=true; showToast(`Đã tạo shortcut "${name}"!`, 'success'); refreshCardStatus(card, p); updateStats(allProfiles); }
+    else showToast(res.error, 'error');
   });
 
   // Delete shortcut
@@ -376,11 +514,8 @@ async function buildCard(profile) {
     if (!p) return;
     const name = p.shortcutName || p.chromeProfileName || p.profileDirectory;
     const res = await window.app.deleteShortcut(name);
-    if (res.success) {
-      p.hasShortcut = false;
-      showToast(`Đã xóa shortcut "${name}"`, 'warning');
-      refreshCardStatus(card, p); updateStats(allProfiles);
-    } else showToast(res.error || 'Không xóa được', 'error');
+    if (res.success) { p.hasShortcut=false; showToast(`Đã xóa shortcut "${name}"`, 'warning'); refreshCardStatus(card, p); updateStats(allProfiles); }
+    else showToast(res.error||'Không xóa được', 'error');
   });
 
   // Delete profile
@@ -394,8 +529,9 @@ async function buildCard(profile) {
     if (res.cancelled) return;
     if (res.success) {
       allProfiles = allProfiles.filter(x => x.profileDirectory !== dir);
+      delete profileSocialCache[dir];
       card.remove();
-      updateStats(allProfiles);
+      updateStats(allProfiles); renderSidebar();
       showToast(`Đã xóa tài khoản "${displayName}"`, 'warning');
     } else showToast(res.error, 'error');
   });
@@ -410,13 +546,114 @@ function refreshCardStatus(card, profile) {
   card.querySelector('.btn-delete').disabled = !profile.hasShortcut;
 }
 
-// ── History modal ─────────────────────────────────────────
-let _historyProfile = null;
+// ── Gmail modal ───────────────────────────────────────────
+function openGmailModal(profile) {
+  document.getElementById('gmail-profile-name').textContent = profile.shortcutName || profile.chromeProfileName || profile.profileDirectory;
+  const list = document.getElementById('gmail-list');
+  const accounts = profile.googleAccounts || [];
+  if (!accounts.length) {
+    list.innerHTML = '<div class="gmail-empty">Chưa có tài khoản Gmail nào đăng nhập trên profile này</div>';
+  } else {
+    list.innerHTML = accounts.map(a => `
+      <div class="gmail-item">
+        <div class="gmail-avatar">${(a.fullName||a.email||'?').charAt(0).toUpperCase()}</div>
+        <div class="gmail-info">
+          <div class="gmail-name">${eh(a.fullName||a.email)}</div>
+          <div class="gmail-email">${eh(a.email)}</div>
+        </div>
+        <div class="gmail-status">Đã xác thực</div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('modal-gmail').classList.remove('hidden');
+}
 
+// ── Social modal ──────────────────────────────────────────
+let _socialProfile = null;
+
+async function openSocialModal(profile, profilePath) {
+  _socialProfile = profile;
+  document.getElementById('social-profile-name').textContent = profile.shortcutName || profile.chromeProfileName || profile.profileDirectory;
+  document.getElementById('social-loading').style.display = '';
+  document.getElementById('social-list').style.display = 'none';
+  document.getElementById('modal-social').classList.remove('hidden');
+
+  if (!profileSocialCache[profile.profileDirectory]) {
+    profileSocialCache[profile.profileDirectory] = await window.app.getSocialStatus(profilePath, socialSitesConfig);
+    // Update badge on card
+    const card = document.querySelector(`[data-profile-dir="${ea(profile.profileDirectory)}"]`);
+    if (card) {
+      const sc = profileSocialCache[profile.profileDirectory];
+      const cnt = Object.values(sc).filter(s=>s.loggedIn).length;
+      const badgeSpan = card.querySelector('.social-badge-count');
+      if (badgeSpan) badgeSpan.textContent = cnt;
+      const badgeBtn = card.querySelector('.badge-social');
+      if (badgeBtn) { if (cnt > 0) badgeBtn.classList.remove('empty'); else badgeBtn.classList.add('empty'); }
+    }
+    renderSidebar();
+  }
+
+  document.getElementById('social-loading').style.display = 'none';
+  const list = document.getElementById('social-list');
+  list.style.display = '';
+  const status = profileSocialCache[profile.profileDirectory];
+
+  list.innerHTML = '';
+  socialSitesConfig.forEach(site => {
+    const s = status[site.id] || { loggedIn: false, name: site.name };
+    const div = document.createElement('div');
+    div.className = `social-item ${s.loggedIn ? 'logged-in' : 'logged-out'}`;
+    div.innerHTML = `
+      <span class="social-icon">${socialIcon(site.id)}</span>
+      <div class="social-info">
+        <div class="social-name">${eh(site.name)}</div>
+        <div class="social-status">${s.loggedIn ? '● Đã đăng nhập' : '○ Chưa đăng nhập'}</div>
+      </div>
+      <span class="social-dot"></span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function closeSocialModal() { document.getElementById('modal-social').classList.add('hidden'); }
+
+// ── Manage social sites ───────────────────────────────────
+let tempSocialSites = [];
+
+function openManageSitesModal() {
+  tempSocialSites = JSON.parse(JSON.stringify(socialSitesConfig));
+  renderSitesList();
+  document.getElementById('modal-manage-sites').classList.remove('hidden');
+}
+
+function renderSitesList() {
+  const ul = document.getElementById('sites-list');
+  ul.innerHTML = '';
+  tempSocialSites.forEach((site, i) => {
+    const li = document.createElement('li');
+    li.className = 'sites-item';
+    li.innerHTML = `
+      <span class="sites-item-name">${socialIcon(site.id)} ${eh(site.name)}</span>
+      <span class="sites-item-domain">${eh(site.domain)}</span>
+      <span class="sites-item-cookie">${eh(site.cookieName)}</span>
+      <button class="btn btn-danger btn-xs" data-i="${i}">Xóa</button>
+    `;
+    li.querySelector('button').addEventListener('click', () => { tempSocialSites.splice(i, 1); renderSitesList(); });
+    ul.appendChild(li);
+  });
+}
+
+async function saveSocialSites() {
+  socialSitesConfig = tempSocialSites;
+  await window.app.saveSocialSites(socialSitesConfig);
+  profileSocialCache = {}; // invalidate cache
+  document.getElementById('modal-manage-sites').classList.add('hidden');
+  showToast('Đã lưu danh sách site', 'success');
+}
+
+// ── History modal ─────────────────────────────────────────
 async function openHistoryModal(profile, profilePath) {
-  _historyProfile = profile;
-  document.getElementById('history-profile-name').textContent =
-    profile.shortcutName || profile.chromeProfileName || profile.profileDirectory;
+  document.getElementById('history-profile-name').textContent = profile.shortcutName || profile.chromeProfileName || profile.profileDirectory;
   document.getElementById('modal-history').classList.remove('hidden');
   document.getElementById('history-loading').style.display = '';
   document.getElementById('history-list').innerHTML = '';
@@ -425,14 +662,8 @@ async function openHistoryModal(profile, profilePath) {
   document.getElementById('history-loading').style.display = 'none';
 
   const list = document.getElementById('history-list');
-  if (!res.ok) {
-    list.innerHTML = `<li style="padding:16px;text-align:center;color:var(--muted)">${eh(res.error)}</li>`;
-    return;
-  }
-  if (!res.items.length) {
-    list.innerHTML = `<li style="padding:16px;text-align:center;color:var(--muted)">Chưa có lịch sử duyệt web</li>`;
-    return;
-  }
+  if (!res.ok) { list.innerHTML = `<li style="padding:16px;text-align:center;color:var(--muted)">${eh(res.error)}</li>`; return; }
+  if (!res.items.length) { list.innerHTML = `<li style="padding:16px;text-align:center;color:var(--muted)">Chưa có lịch sử duyệt web</li>`; return; }
 
   res.items.forEach(item => {
     const li = document.createElement('li');
@@ -453,21 +684,18 @@ async function openHistoryModal(profile, profilePath) {
   });
 }
 
-function closeHistoryModal() {
-  document.getElementById('modal-history').classList.add('hidden');
-}
+function closeHistoryModal() { document.getElementById('modal-history').classList.add('hidden'); }
 
-// ── Render list ───────────────────────────────────────────
+// ── Render profiles ───────────────────────────────────────
 async function renderProfiles(profiles) {
   currentFiltered = profiles;
   const grid = document.getElementById('profile-grid');
   grid.innerHTML = '';
 
   const btnOpenAll = document.getElementById('btn-open-all');
-  const isFiltered = activeGroupFilters.size > 0 || document.getElementById('search-input').value.trim();
+  const isFiltered = activeSidebarFilter || document.getElementById('search-input').value.trim();
   if (isFiltered && profiles.length > 1) {
-    btnOpenAll.style.display = '';
-    document.getElementById('open-all-count').textContent = profiles.length;
+    btnOpenAll.style.display = ''; document.getElementById('open-all-count').textContent = profiles.length;
   } else {
     btnOpenAll.style.display = 'none';
   }
@@ -479,32 +707,15 @@ async function renderProfiles(profiles) {
   for (const p of profiles) grid.appendChild(await buildCard(p));
 }
 
-// ── Filter ────────────────────────────────────────────────
-function applyFilter() {
-  const q = document.getElementById('search-input').value.trim().toLowerCase();
-  const filtered = allProfiles.filter(p => {
-    const matchGroup = activeGroupFilters.size === 0 || (p.groups||[]).some(g => activeGroupFilters.has(g));
-    const matchQ = !q ||
-      (p.profileDirectory||'').toLowerCase().includes(q) ||
-      (p.shortcutName||'').toLowerCase().includes(q) ||
-      (p.chromeProfileName||'').toLowerCase().includes(q) ||
-      (p.groups||[]).some(x=>x.toLowerCase().includes(q)) ||
-      (p.email||'').toLowerCase().includes(q) ||
-      (p.notes||'').toLowerCase().includes(q);
-    return matchGroup && matchQ;
-  });
-  renderProfiles(filtered);
-}
-
 // ── Scan ──────────────────────────────────────────────────
 async function scanProfiles() {
   showState('loading');
   try {
     const result = await window.app.scanProfiles();
     allProfiles = result.profiles;
-    updateStats(allProfiles);
-    showState('grid');
-    applyFilter();
+    profileSocialCache = {};
+    updateStats(allProfiles); renderSidebar();
+    showState('grid'); applyFilter();
     showToast(`Tìm thấy ${allProfiles.length} profile Chrome`, 'success');
   } catch (err) {
     showState('empty');
@@ -517,7 +728,7 @@ async function scanProfiles() {
   }
 }
 
-// ── Open all filtered ─────────────────────────────────────
+// ── Open all ──────────────────────────────────────────────
 async function openAllFiltered() {
   if (!currentFiltered.length) return;
   const btn = document.getElementById('btn-open-all');
@@ -547,7 +758,7 @@ async function createAllShortcuts() {
   let msg = `Đã tạo ${ok} shortcut`;
   if (dup) msg += `, bỏ qua ${dup} tên trùng`;
   if (fail) msg += `, lỗi ${fail}`;
-  showToast(msg, fail || dup ? 'warning' : 'success');
+  showToast(msg, fail||dup ? 'warning' : 'success');
 }
 
 // ── Remove bad extensions ──────────────────────────────────
@@ -558,8 +769,8 @@ async function removeBadExtensions() {
   btn.disabled=false;
   btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Dọn tiện ích`;
   if (res.success) {
-    if (res.totalRemoved === 0) showToast('Không tìm thấy tiện ích McAfee/IDM nào', 'info');
-    else showToast(`Đã xóa ${res.totalRemoved} tiện ích (bỏ qua ${res.skipped} profile được bảo vệ). Khởi động lại Chrome để có hiệu lực.`, 'success');
+    if (!res.totalRemoved) showToast('Không tìm thấy tiện ích McAfee/IDM nào', 'info');
+    else showToast(`Đã xóa ${res.totalRemoved} tiện ích (bỏ qua ${res.skipped} profile được bảo vệ)`, 'success');
   }
 }
 
@@ -569,8 +780,8 @@ async function killAllChrome() {
   btn.disabled=true;
   const res = await window.app.killAllChrome();
   btn.disabled=false;
-  if (res.success) showToast('Đã đóng tất cả Chrome', 'success');
-  else showToast(res.error || 'Không có Chrome nào đang mở', 'info');
+  if (res.notFound) showToast('Không có Chrome nào đang mở', 'info');
+  else showToast('Đã đóng tất cả Chrome', 'success');
 }
 
 // ── Storage modal ─────────────────────────────────────────
@@ -631,42 +842,38 @@ function renderGroupList() {
     const subs = tempGroupSubs[g] || [];
     const li = document.createElement('li');
     li.className = 'group-item';
-    li.style.flexDirection = 'column';
-    li.style.alignItems = 'stretch';
     li.innerHTML = `
-      <div style="display:flex;align-items:center;gap:7px">
+      <div class="group-item-row">
         <span class="group-item-name">${eh(g)}</span>
         <input type="text" class="group-item-input" value="${ea(g)}" maxlength="30"/>
         ${isDefault ? '<span class="group-item-default">Mặc định</span>' : ''}
         <button class="btn btn-outline btn-xs btn-edit-grp">Sửa</button>
         ${!isDefault ? `<button class="btn btn-danger btn-xs btn-del-grp">Xóa</button>` : ''}
-        <button class="btn btn-outline btn-xs btn-expand-subs" title="Quản lý danh mục con">▸ ${subs.length?subs.length+' con':''}</button>
+        <button class="btn btn-outline btn-xs btn-expand-subs">▸ Danh mục con ${subs.length?`(${subs.length})`:'(0)'}</button>
       </div>
-      <div class="group-subs-panel" style="display:none;margin-top:7px;padding:7px;background:var(--bg);border-radius:7px;border:1px solid var(--border)">
+      <div class="group-subs-panel" style="display:none">
         <div class="subs-list"></div>
-        <div style="display:flex;gap:5px;margin-top:5px">
+        <div style="display:flex;gap:5px;margin-top:6px">
           <input type="text" class="form-input sub-input" placeholder="Tên danh mục con..." maxlength="30" style="flex:1"/>
           <button class="btn btn-primary btn-xs btn-add-sub">+ Thêm</button>
         </div>
       </div>
     `;
 
-    const row = li.querySelector('div');
     const panel = li.querySelector('.group-subs-panel');
     const subsList = li.querySelector('.subs-list');
     const subInput = li.querySelector('.sub-input');
     const expandBtn = li.querySelector('.btn-expand-subs');
 
-    // Render subs
     function renderSubs() {
       subsList.innerHTML = '';
       (tempGroupSubs[g]||[]).forEach((sub, si) => {
         const s = document.createElement('div');
         s.className = 'group-sub-row';
-        s.innerHTML = `<span class="group-sub-name">• ${eh(sub)}</span><button class="btn btn-danger btn-xs" data-si="${si}">Xóa</button>`;
+        s.innerHTML = `<span class="group-sub-name">• ${eh(sub)}</span><button class="btn btn-danger btn-xs">Xóa</button>`;
         s.querySelector('button').addEventListener('click', () => {
-          tempGroupSubs[g].splice(si, 1);
-          expandBtn.textContent = `▸ ${tempGroupSubs[g].length?tempGroupSubs[g].length+' con':''}`;
+          tempGroupSubs[g].splice(si,1);
+          expandBtn.textContent = `${panel.style.display!=='none'?'▾':'▸'} Danh mục con (${tempGroupSubs[g].length})`;
           renderSubs();
         });
         subsList.appendChild(s);
@@ -675,15 +882,15 @@ function renderGroupList() {
     renderSubs();
 
     expandBtn.addEventListener('click', () => {
-      const showing = panel.style.display !== 'none';
-      panel.style.display = showing ? 'none' : '';
-      expandBtn.textContent = `${showing?'▸':'▾'} ${(tempGroupSubs[g]||[]).length?' '+(tempGroupSubs[g].length)+' con':''}`;
+      const show = panel.style.display === 'none';
+      panel.style.display = show ? '' : 'none';
+      expandBtn.textContent = `${show?'▾':'▸'} Danh mục con (${(tempGroupSubs[g]||[]).length})`;
     });
 
     li.querySelector('.btn-add-sub').addEventListener('click', () => {
       const v = subInput.value.trim();
       if (!v) return;
-      if (!(tempGroupSubs[g])) tempGroupSubs[g] = [];
+      if (!tempGroupSubs[g]) tempGroupSubs[g] = [];
       if (!tempGroupSubs[g].includes(v)) { tempGroupSubs[g].push(v); subInput.value=''; renderSubs(); }
     });
     subInput.addEventListener('keydown', e => { if(e.key==='Enter') li.querySelector('.btn-add-sub').click(); });
@@ -693,18 +900,14 @@ function renderGroupList() {
       if (!li.classList.contains('editing')) {
         const v = li.querySelector('.group-item-input').value.trim();
         if (v && v !== g) {
-          // Rename key in groupSubs
           if (tempGroupSubs[g]) { tempGroupSubs[v] = tempGroupSubs[g]; delete tempGroupSubs[g]; }
-          tempGroups[i] = v;
-          renderGroupList();
+          tempGroups[i] = v; renderGroupList();
         }
       } else li.querySelector('.group-item-input').focus();
     });
 
     li.querySelector('.btn-del-grp')?.addEventListener('click', () => {
-      delete tempGroupSubs[g];
-      tempGroups.splice(i,1);
-      renderGroupList();
+      delete tempGroupSubs[g]; tempGroups.splice(i,1); renderGroupList();
     });
 
     ul.appendChild(li);
@@ -716,16 +919,17 @@ async function saveGroups() {
   allGroupSubs = tempGroupSubs;
   await window.app.saveGroups(allGroups);
   await window.app.saveGroupSubs(allGroupSubs);
-  buildGroupFilterDropdown();
-  closeGroupModal();
+  renderSidebar(); closeGroupModal();
   showToast('Đã lưu danh sách nhóm', 'success');
 }
 
-// ── New profile modal (with groups + notes) ───────────────
+// ── New profile modal ─────────────────────────────────────
 let newProfileSelectedGroups = [];
+let newProfileSubGroups = {};
 
 function openNewProfileModal() {
   newProfileSelectedGroups = [];
+  newProfileSubGroups = {};
   document.getElementById('new-profile-name').value = '';
   document.getElementById('new-profile-notes').value = '';
   buildNewProfileGroupsUI();
@@ -738,16 +942,43 @@ function buildNewProfileGroupsUI() {
   row.innerHTML = '';
 
   newProfileSelectedGroups.forEach(g => {
+    const subs = allGroupSubs[g] || [];
+    const selectedSub = newProfileSubGroups[g] || '';
+    const entry = document.createElement('div');
+    entry.className = 'new-profile-group-entry';
+
     const tag = document.createElement('span');
     tag.className = `group-tag gc-${groupClass(g)}`;
-    tag.innerHTML = `${eh(g)}<span class="remove-tag">&times;</span>`;
-    tag.querySelector('.remove-tag').addEventListener('click', () => {
-      newProfileSelectedGroups = newProfileSelectedGroups.filter(x => x !== g);
+    tag.style.cssText = 'cursor:default;font-size:11px';
+    tag.textContent = g;
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'remove-tag';
+    removeBtn.style.cssText = 'cursor:pointer;margin-left:3px;opacity:.7';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => {
+      newProfileSelectedGroups = newProfileSelectedGroups.filter(x=>x!==g);
+      delete newProfileSubGroups[g];
       buildNewProfileGroupsUI();
     });
-    row.appendChild(tag);
+    tag.appendChild(removeBtn);
+    entry.appendChild(tag);
+
+    if (subs.length) {
+      const sel = document.createElement('select');
+      sel.innerHTML = `<option value="">-- danh mục con --</option>` +
+        subs.map(s => `<option value="${ea(s)}" ${selectedSub===s?'selected':''}>${eh(s)}</option>`).join('');
+      sel.addEventListener('change', e => {
+        if (e.target.value) newProfileSubGroups[g] = e.target.value;
+        else delete newProfileSubGroups[g];
+      });
+      entry.appendChild(sel);
+    }
+
+    row.appendChild(entry);
   });
 
+  // Add group dropdown
   const wrap = document.createElement('div');
   wrap.className = 'group-dropdown';
   const btn = document.createElement('button');
@@ -762,7 +993,7 @@ function buildNewProfileGroupsUI() {
     item.innerHTML = `<span class="check">${selected?'✓':''}</span>${eh(g)}`;
     item.addEventListener('click', e => {
       e.stopPropagation();
-      if (selected) newProfileSelectedGroups = newProfileSelectedGroups.filter(x=>x!==g);
+      if (selected) { newProfileSelectedGroups = newProfileSelectedGroups.filter(x=>x!==g); delete newProfileSubGroups[g]; }
       else newProfileSelectedGroups.push(g);
       menu.classList.remove('open');
       buildNewProfileGroupsUI();
@@ -774,15 +1005,13 @@ function buildNewProfileGroupsUI() {
   row.appendChild(wrap);
 }
 
-function closeNewProfileModal() {
-  document.getElementById('modal-new-profile').classList.add('hidden');
-}
+function closeNewProfileModal() { document.getElementById('modal-new-profile').classList.add('hidden'); }
 
 async function confirmCreateProfile() {
   const name = document.getElementById('new-profile-name').value.trim();
   const notes = document.getElementById('new-profile-notes').value.trim();
   closeNewProfileModal();
-  const res = await window.app.createChromeProfile(name, newProfileSelectedGroups, notes);
+  const res = await window.app.createChromeProfile(name, newProfileSelectedGroups, newProfileSubGroups, notes);
   if (res.success) {
     let msg = `Chrome mở tài khoản mới (${res.profileDirectory})`;
     if (name) msg += ` — đã đặt tên "${name}"`;
@@ -791,34 +1020,25 @@ async function confirmCreateProfile() {
   } else showToast(res.error, 'error');
 }
 
-// ── State ─────────────────────────────────────────────────
+// ── State helpers ─────────────────────────────────────────
 function showState(s) {
   document.getElementById('empty-state').style.display = s==='empty'?'':'none';
   document.getElementById('profile-grid').style.display = s==='grid'?'':'none';
   document.getElementById('loading').style.display = s==='loading'?'':'none';
 }
 
-function eh(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function ea(s) { return String(s||'').replace(/"/g,'&quot;'); }
-
-// ── Close dropdowns ───────────────────────────────────────
+// ── Close dropdowns on outside click ─────────────────────
 document.addEventListener('click', () => {
   document.querySelectorAll('.group-dropdown-menu.open').forEach(m => m.classList.remove('open'));
-  document.getElementById('group-filter-dropdown').classList.add('hidden');
 });
 
-// ── Init ─────────────────────────────────────────────────
+// ── Init event bindings ───────────────────────────────────
 document.getElementById('btn-scan').addEventListener('click', scanProfiles);
 document.getElementById('btn-create-all').addEventListener('click', createAllShortcuts);
 document.getElementById('btn-open-all').addEventListener('click', openAllFiltered);
 document.getElementById('btn-remove-ext').addEventListener('click', removeBadExtensions);
 document.getElementById('btn-kill-chrome').addEventListener('click', killAllChrome);
 document.getElementById('search-input').addEventListener('input', applyFilter);
-
-document.getElementById('group-filter-btn').addEventListener('click', e => {
-  e.stopPropagation();
-  document.getElementById('group-filter-dropdown').classList.toggle('hidden');
-});
 
 document.getElementById('btn-pick-folder').addEventListener('click', async () => {
   const chosen = await window.app.pickUserDataFolder();
@@ -862,8 +1082,39 @@ document.getElementById('modal-history-close').addEventListener('click', closeHi
 document.getElementById('btn-close-history').addEventListener('click', closeHistoryModal);
 document.getElementById('modal-history').addEventListener('click', e => { if(e.target===e.currentTarget) closeHistoryModal(); });
 
+document.getElementById('modal-gmail-close').addEventListener('click', () => document.getElementById('modal-gmail').classList.add('hidden'));
+document.getElementById('btn-close-gmail').addEventListener('click', () => document.getElementById('modal-gmail').classList.add('hidden'));
+document.getElementById('modal-gmail').addEventListener('click', e => { if(e.target===e.currentTarget) document.getElementById('modal-gmail').classList.add('hidden'); });
+
+document.getElementById('modal-social-close').addEventListener('click', closeSocialModal);
+document.getElementById('btn-close-social').addEventListener('click', closeSocialModal);
+document.getElementById('modal-social').addEventListener('click', e => { if(e.target===e.currentTarget) closeSocialModal(); });
+document.getElementById('btn-manage-social-sites').addEventListener('click', () => { closeSocialModal(); openManageSitesModal(); });
+
+document.getElementById('modal-manage-sites-close').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
+document.getElementById('btn-cancel-sites').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
+document.getElementById('btn-save-sites').addEventListener('click', saveSocialSites);
+document.getElementById('btn-add-site').addEventListener('click', () => {
+  const name = document.getElementById('new-site-name').value.trim();
+  const domain = document.getElementById('new-site-domain').value.trim();
+  const cookieName = document.getElementById('new-site-cookie').value.trim();
+  if (!name || !domain || !cookieName) { showToast('Điền đầy đủ thông tin site', 'warning'); return; }
+  const id = name.toLowerCase().replace(/\s+/g, '_');
+  tempSocialSites.push({ id, name, domain, cookieName });
+  document.getElementById('new-site-name').value = '';
+  document.getElementById('new-site-domain').value = '';
+  document.getElementById('new-site-cookie').value = '';
+  renderSitesList();
+});
+document.getElementById('modal-manage-sites').addEventListener('click', e => { if(e.target===e.currentTarget) document.getElementById('modal-manage-sites').classList.add('hidden'); });
+
+// ── Init ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  [allGroups, allGroupSubs] = await Promise.all([window.app.getGroups(), window.app.getGroupSubs()]);
-  buildGroupFilterDropdown();
+  [allGroups, allGroupSubs, socialSitesConfig] = await Promise.all([
+    window.app.getGroups(),
+    window.app.getGroupSubs(),
+    window.app.getSocialSites(),
+  ]);
+  renderSidebar();
   scanProfiles();
 });
