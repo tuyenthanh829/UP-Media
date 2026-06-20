@@ -31,5 +31,6 @@ contextBridge.exposeInMainWorld('app', {
   getSocialStatusBatch: (profilePaths, sites) => ipcRenderer.invoke('get-social-status-batch', profilePaths, sites),
   getSocialSites: () => ipcRenderer.invoke('get-social-sites'),
   saveSocialSites: (sites) => ipcRenderer.invoke('save-social-sites', sites),
+  getCookiesForDomain: (profilePath, domain) => ipcRenderer.invoke('get-cookies-for-domain', profilePath, domain),
   renameGroupInProfiles: (oldName, newName) => ipcRenderer.invoke('rename-group-in-profiles', oldName, newName),
 });

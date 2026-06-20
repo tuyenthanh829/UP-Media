@@ -301,6 +301,10 @@ ipcMain.handle('get-social-sites', async () => {
   return configStore.getSocialSites() || social.DEFAULT_SOCIAL_SITES;
 });
 
+ipcMain.handle('get-cookies-for-domain', async (_, profilePath, domain) => {
+  return social.getCookiesForDomain(profilePath, domain);
+});
+
 ipcMain.handle('save-social-sites', async (_, sites) => {
   configStore.saveSocialSites(sites);
   return true;

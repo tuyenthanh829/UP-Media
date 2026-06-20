@@ -651,15 +651,18 @@ function openGmailModal(profile) {
 }
 
 // ── Social modal ──────────────────────────────────────────
+let _socialModalProfile = null;
+
 async function openSocialModal(profile, profilePath) {
+  _socialModalProfile = { profile, profilePath };
   document.getElementById('social-profile-name').textContent = profile.shortcutName||profile.chromeProfileName||profile.profileDirectory;
   document.getElementById('social-loading').style.display = '';
   document.getElementById('social-list').style.display = 'none';
+  document.getElementById('social-diag-panel').style.display = 'none';
   document.getElementById('modal-social').classList.remove('hidden');
 
   if (!profileSocialCache[profile.profileDirectory]) {
     profileSocialCache[profile.profileDirectory] = await window.app.getSocialStatus(profilePath, socialSitesConfig);
-    // Update badge on card
     const sc = profileSocialCache[profile.profileDirectory];
     const cnt = Object.values(sc).filter(s=>s.loggedIn).length;
     const card = document.querySelector(`[data-profile-dir="${ea(profile.profileDirectory)}"]`);
@@ -680,6 +683,12 @@ async function openSocialModal(profile, profilePath) {
   list.innerHTML = '';
   socialSitesConfig.forEach(site => {
     const s = status[site.id] || { loggedIn: false, name: site.name };
+    // Show which cookie names are being checked
+    const cookieNames = site.cookieNames || [site.cookieName];
+    const domains = site.domains || [site.domain];
+    const cookieHint = cookieNames.join(', ');
+    const domainHint = domains.join(' / ');
+
     const div = document.createElement('div');
     div.className = `social-item ${s.loggedIn ? 'logged-in' : 'logged-out'}`;
     div.innerHTML = `
@@ -687,6 +696,7 @@ async function openSocialModal(profile, profilePath) {
       <div class="social-info">
         <div class="social-name">${eh(site.name)}</div>
         <div class="social-status">${s.loggedIn ? '● Đã đăng nhập' : '○ Chưa đăng nhập'}</div>
+        <div class="social-cookie-hint" title="Domain kiểm tra: ${eh(domainHint)}">🔑 ${eh(cookieHint)}</div>
       </div>
       <span class="social-dot"></span>
     `;
@@ -694,7 +704,70 @@ async function openSocialModal(profile, profilePath) {
   });
 }
 
-function closeSocialModal() { document.getElementById('modal-social').classList.add('hidden'); }
+function closeSocialModal() {
+  document.getElementById('modal-social').classList.add('hidden');
+  document.getElementById('social-diag-panel').style.display = 'none';
+  _socialModalProfile = null;
+}
+
+async function runCookieDiagnostic() {
+  if (!_socialModalProfile) return;
+  const { profilePath } = _socialModalProfile;
+  const panel = document.getElementById('social-diag-panel');
+  const content = document.getElementById('social-diag-content');
+  panel.style.display = '';
+  content.innerHTML = '<div style="color:var(--muted);font-size:12px">Đang dò cookie...</div>';
+
+  const results = [];
+  for (const site of socialSitesConfig) {
+    const domains = site.domains || [site.domain];
+    const allCookies = [];
+    for (const domain of domains) {
+      const rows = await window.app.getCookiesForDomain(profilePath, domain);
+      rows.forEach(r => { if (!allCookies.find(x=>x.name===r.name&&x.host===r.host)) allCookies.push(r); });
+    }
+    results.push({ site, cookies: allCookies });
+  }
+
+  content.innerHTML = '';
+  results.forEach(({ site, cookies }) => {
+    const cookieNames = site.cookieNames || [site.cookieName];
+    const block = document.createElement('div');
+    block.style.cssText = 'margin-bottom:10px;font-size:12px';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:6px';
+    const found = cookies.some(c => cookieNames.includes(c.name));
+    header.innerHTML = `${socialIcon(site.id)} ${eh(site.name)} <span style="font-weight:400;color:${found ? 'var(--success)' : 'var(--danger)'}">${found ? '✓ Tìm thấy' : '✗ Không thấy'}</span>`;
+    block.appendChild(header);
+
+    if (!cookies.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color:var(--muted);padding-left:8px';
+      empty.textContent = 'Không có cookie nào cho domain này';
+      block.appendChild(empty);
+    } else {
+      const table = document.createElement('div');
+      table.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;padding-left:8px';
+      cookies.forEach(c => {
+        const isTarget = cookieNames.includes(c.name);
+        const chip = document.createElement('span');
+        chip.style.cssText = `display:inline-block;padding:1px 6px;border-radius:10px;font-size:11px;cursor:default;${isTarget ? 'background:var(--success);color:#fff;font-weight:600' : 'background:var(--bg);border:1px solid var(--border);color:var(--muted)'}`;
+        chip.title = `host: ${c.host}`;
+        chip.textContent = c.name;
+        table.appendChild(chip);
+      });
+      block.appendChild(table);
+    }
+
+    content.appendChild(block);
+  });
+
+  const note = document.createElement('div');
+  note.style.cssText = 'margin-top:8px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:8px';
+  note.innerHTML = '✅ = cookie đang dò&nbsp;&nbsp;•&nbsp;&nbsp;Chip xám = cookie khác trong domain&nbsp;&nbsp;•&nbsp;&nbsp;Vào <b>⚙ Quản lý site</b> để sửa tên cookie';
+  content.appendChild(note);
+}
 
 // ── Manage social sites ───────────────────────────────────
 let tempSocialSites = [];
@@ -1207,6 +1280,7 @@ document.getElementById('modal-social-close').addEventListener('click', closeSoc
 document.getElementById('btn-close-social').addEventListener('click', closeSocialModal);
 document.getElementById('modal-social').addEventListener('click', e => { if(e.target===e.currentTarget) closeSocialModal(); });
 document.getElementById('btn-manage-social-sites').addEventListener('click', () => { closeSocialModal(); openManageSitesModal(); });
+document.getElementById('btn-diag-cookies').addEventListener('click', runCookieDiagnostic);
 
 document.getElementById('modal-manage-sites-close').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
 document.getElementById('btn-cancel-sites').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));

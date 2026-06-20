@@ -275,6 +275,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .social-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .social-item.logged-in .social-dot{background:var(--success)}
 .social-item.logged-out .social-dot{background:#cbd5e1}
+.social-cookie-hint{font-size:10px;color:var(--muted);margin-top:2px;font-family:monospace;opacity:.7}
 
 /* Manage sites modal */
 .sites-list{list-style:none;display:flex;flex-direction:column;gap:4px;margin-bottom:10px;max-height:260px;overflow-y:auto}

@@ -107,9 +107,17 @@
         <div class="spinner-sm"></div> Đang kiểm tra cookie...
       </div>
       <div id="social-list" class="social-list" style="display:none"></div>
+      <div id="social-diag-panel" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          COOKIE THỰC TẾ TRONG PROFILE (chẩn đoán)
+        </div>
+        <div id="social-diag-content"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" id="btn-manage-social-sites">⚙ Quản lý site</button>
+      <button class="btn btn-outline btn-sm" id="btn-diag-cookies" title="Xem cookie thực tế trong profile để tìm đúng tên cookie">🔍 Dò cookie</button>
       <button class="btn btn-outline" id="btn-close-social">Đóng</button>
     </div>
   </div>
