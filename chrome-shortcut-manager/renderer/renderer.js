@@ -233,12 +233,24 @@ function applyFilter() {
 async function scanProfiles() {
   showState('loading');
   try {
-    const profiles = await window.app.scanProfiles();
+    const result = await window.app.scanProfiles();
+    const profiles = result.profiles;
+    const userDataPath = result.userDataPath;
+
     allProfiles = profiles;
     updateStats(profiles);
 
+    // Hiện đường dẫn đang dùng ở header
+    const pathInfo = document.getElementById('current-path-info');
+    if (pathInfo) {
+      pathInfo.style.display = '';
+      pathInfo.textContent = `📁 Chrome User Data: ${userDataPath}`;
+    }
+
     if (profiles.length === 0) {
       showState('empty');
+      document.getElementById('empty-title').textContent = 'Chưa có profile nào';
+      document.getElementById('empty-desc').innerHTML = 'Bấm <strong>"Quét lại profile"</strong> để tìm các tài khoản Chrome trên máy';
       showToast('Chưa tìm thấy profile Chrome nào trên máy.', 'warning');
     } else {
       showState('grid');
@@ -247,7 +259,12 @@ async function scanProfiles() {
     }
   } catch (err) {
     showState('empty');
-    showToast(err.message || 'Không tìm thấy thư mục profile Chrome. Vui lòng mở Chrome ít nhất một lần rồi thử lại.', 'error');
+    const isNotFound = err.message && err.message.includes('NOT_FOUND_USER_DATA');
+    document.getElementById('empty-title').textContent = 'Không tìm thấy thư mục Chrome';
+    document.getElementById('empty-desc').innerHTML = isNotFound
+      ? 'App không tự tìm được thư mục Chrome trên máy.<br>Bấm <strong>"Chọn thư mục Chrome thủ công"</strong> để chỉ đường.'
+      : (err.message || 'Có lỗi xảy ra khi quét profile.');
+    showToast('Không tìm thấy thư mục Chrome. Hãy chọn thủ công.', 'error');
   }
 }
 
@@ -308,6 +325,15 @@ document.getElementById('btn-create-all').addEventListener('click', createAllSho
 document.getElementById('btn-open-desktop').addEventListener('click', () => window.app.openDesktop());
 document.getElementById('search-input').addEventListener('input', applyFilter);
 document.getElementById('group-filter').addEventListener('change', applyFilter);
+
+// Chọn thư mục Chrome User Data thủ công
+document.getElementById('btn-pick-folder').addEventListener('click', async () => {
+  const chosen = await window.app.pickUserDataFolder();
+  if (chosen) {
+    showToast(`Đã chọn: ${chosen}`, 'info');
+    scanProfiles();
+  }
+});
 
 // Auto scan on start
 window.addEventListener('DOMContentLoaded', scanProfiles);

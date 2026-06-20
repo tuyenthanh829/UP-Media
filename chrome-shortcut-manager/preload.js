@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('app', {
   deleteShortcut: (shortcutName) => ipcRenderer.invoke('delete-shortcut', shortcutName),
   openProfile: (profileDirectory) => ipcRenderer.invoke('open-profile', profileDirectory),
   openDesktop: () => ipcRenderer.invoke('open-desktop'),
-  checkShortcutExists: (shortcutName) => ipcRenderer.invoke('check-shortcut-exists', shortcutName)
+  checkShortcutExists: (shortcutName) => ipcRenderer.invoke('check-shortcut-exists', shortcutName),
+  pickUserDataFolder: () => ipcRenderer.invoke('pick-user-data-folder'),
+  getSettings: () => ipcRenderer.invoke('get-settings')
 });

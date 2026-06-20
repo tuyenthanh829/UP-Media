@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 
 const chromeProfiles = require('./src/chromeProfiles');
@@ -40,22 +40,30 @@ app.on('window-all-closed', () => {
 // IPC handlers
 ipcMain.handle('scan-profiles', async () => {
   try {
-    const profiles = chromeProfiles.scanProfiles();
     const config = configStore.getConfig();
+    const customPath = config.settings?.chromeUserDataPath || null;
 
-    return profiles.map(p => {
-      const saved = config.profiles?.[p.profileDirectory] || {};
-      const shortcutName = saved.shortcutName || p.chromeProfileName || p.profileDirectory;
-      return {
-        ...p,
-        shortcutName,
-        group: saved.group || 'Khác',
-        hasShortcut: shortcuts.shortcutExists(shortcutName)
-      };
-    });
+    const { profiles, userDataPath } = chromeProfiles.scanProfiles(customPath);
+
+    // Lưu lại đường dẫn đã tìm thấy để UI hiển thị
+    configStore.saveSettings({ chromeUserDataPath: userDataPath });
+
+    return {
+      profiles: profiles.map(p => {
+        const saved = config.profiles?.[p.profileDirectory] || {};
+        const shortcutName = saved.shortcutName || p.chromeProfileName || p.profileDirectory;
+        return {
+          ...p,
+          shortcutName,
+          group: saved.group || 'Khác',
+          hasShortcut: shortcuts.shortcutExists(shortcutName)
+        };
+      }),
+      userDataPath
+    };
   } catch (err) {
     if (err.message === 'NOT_FOUND_USER_DATA') {
-      throw new Error('Không tìm thấy thư mục profile Chrome. Vui lòng mở Chrome ít nhất một lần rồi thử lại.');
+      throw new Error('NOT_FOUND_USER_DATA');
     }
     throw err;
   }
@@ -104,4 +112,22 @@ ipcMain.handle('open-desktop', async () => {
 
 ipcMain.handle('check-shortcut-exists', async (_, shortcutName) => {
   return shortcuts.shortcutExists(shortcutName);
+});
+
+// Cho user chọn thư mục Chrome User Data thủ công
+ipcMain.handle('pick-user-data-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Chọn thư mục Chrome User Data',
+    properties: ['openDirectory'],
+    buttonLabel: 'Chọn thư mục này'
+  });
+  if (result.canceled || !result.filePaths.length) return null;
+  const chosen = result.filePaths[0];
+  configStore.saveSettings({ chromeUserDataPath: chosen });
+  return chosen;
+});
+
+ipcMain.handle('get-settings', async () => {
+  const config = configStore.getConfig();
+  return config.settings || {};
 });

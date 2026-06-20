@@ -2,9 +2,37 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-function getChromeUserDataPath() {
+// Tất cả đường dẫn có thể có của Chrome User Data
+function getPossibleUserDataPaths() {
   const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-  return path.join(localAppData, 'Google', 'Chrome', 'User Data');
+  const home = os.homedir();
+  const drives = ['C', 'D', 'E', 'F'];
+
+  const paths = [
+    // Mặc định
+    path.join(localAppData, 'Google', 'Chrome', 'User Data'),
+    path.join(home, 'AppData', 'Local', 'Google', 'Chrome', 'User Data'),
+  ];
+
+  // Thêm các ổ D, E, F với các tên thư mục phổ biến
+  for (const drive of drives) {
+    paths.push(`${drive}:\\No Delete\\Google\\Chrome\\User Data`);
+    paths.push(`${drive}:\\Google\\Chrome\\User Data`);
+    paths.push(`${drive}:\\Chrome\\User Data`);
+    paths.push(`${drive}:\\Users\\${os.userInfo().username}\\AppData\\Local\\Google\\Chrome\\User Data`);
+  }
+
+  return paths;
+}
+
+function findUserDataPath(customPath) {
+  // Nếu người dùng đã chỉ định custom path, ưu tiên dùng
+  if (customPath && fs.existsSync(customPath)) return customPath;
+
+  for (const p of getPossibleUserDataPaths()) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
 }
 
 function readPreferences(profilePath) {
@@ -19,10 +47,10 @@ function readPreferences(profilePath) {
   }
 }
 
-function scanProfiles() {
-  const userDataPath = getChromeUserDataPath();
+function scanProfiles(customUserDataPath) {
+  const userDataPath = findUserDataPath(customUserDataPath);
 
-  if (!fs.existsSync(userDataPath)) {
+  if (!userDataPath) {
     throw new Error('NOT_FOUND_USER_DATA');
   }
 
@@ -65,7 +93,7 @@ function scanProfiles() {
     return numA - numB;
   });
 
-  return profiles;
+  return { profiles, userDataPath };
 }
 
-module.exports = { scanProfiles, getChromeUserDataPath };
+module.exports = { scanProfiles, findUserDataPath, getPossibleUserDataPaths };

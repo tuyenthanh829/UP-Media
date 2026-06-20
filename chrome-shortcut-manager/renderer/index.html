@@ -92,11 +92,18 @@
       <div class="empty-icon">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       </div>
-      <h3>Chưa có profile nào</h3>
-      <p>Bấm <strong>"Quét lại profile"</strong> để tìm các tài khoản Chrome trên máy</p>
-      <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">
-        Quét profile Chrome
-      </button>
+      <h3 id="empty-title">Chưa có profile nào</h3>
+      <p id="empty-desc">Bấm <strong>"Quét lại profile"</strong> để tìm các tài khoản Chrome trên máy</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">
+          Quét profile Chrome
+        </button>
+        <button class="btn btn-secondary" id="btn-pick-folder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          Chọn thư mục Chrome thủ công
+        </button>
+      </div>
+      <div id="current-path-info" style="display:none;margin-top:12px;padding:10px 16px;background:#f1f5f9;border-radius:8px;font-size:12px;color:#64748b;max-width:500px;word-break:break-all"></div>
     </div>
 
     <!-- Profile list -->

@@ -38,8 +38,14 @@ function saveProfileConfig(profileDirectory, data) {
   return save(config);
 }
 
+function saveSettings(settings) {
+  const config = load();
+  config.settings = { ...config.settings, ...settings };
+  return save(config);
+}
+
 function getConfig() {
   return load();
 }
 
-module.exports = { init, load, save, saveProfileConfig, getConfig };
+module.exports = { init, load, save, saveProfileConfig, saveSettings, getConfig };
