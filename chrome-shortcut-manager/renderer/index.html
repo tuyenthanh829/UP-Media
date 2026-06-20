@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chrome Shortcut Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Toast notification -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="app-icon">
+        <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="22" fill="#4285F4"/>
+          <circle cx="24" cy="24" r="10" fill="white"/>
+          <path d="M24 14 A10 10 0 0 1 32.66 19 L24 19 Z" fill="#EA4335"/>
+          <path d="M24 14 A10 10 0 0 0 15.34 19 L10.14 10 A22 22 0 0 1 37.86 10 Z" fill="#EA4335"/>
+          <path d="M15.34 19 A10 10 0 0 0 15.34 29 L7 33.66 A22 22 0 0 1 2 24 A22 22 0 0 1 10.14 10 Z" fill="#FBBC05"/>
+          <path d="M32.66 29 A10 10 0 0 0 32.66 19 L41 14.34 A22 22 0 0 1 46 24 A22 22 0 0 1 37.86 38 Z" fill="#34A853"/>
+          <path d="M24 34 A10 10 0 0 1 15.34 29 L7 33.66 A22 22 0 0 0 41 33.66 L32.66 29 A10 10 0 0 1 24 34 Z" fill="#34A853"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="app-title">Chrome Shortcut Manager</h1>
+        <p class="app-subtitle">Quản lý user Chrome và tạo shortcut ra Desktop</p>
+      </div>
+    </div>
+    <div class="header-stats" id="stats">
+      <div class="stat-item">
+        <span class="stat-number" id="stat-total">0</span>
+        <span class="stat-label">Tổng profile</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-number has-shortcut" id="stat-has-shortcut">0</span>
+        <span class="stat-label">Đã có shortcut</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-number no-shortcut" id="stat-no-shortcut">0</span>
+        <span class="stat-label">Chưa có shortcut</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-number unnamed" id="stat-unnamed">0</span>
+        <span class="stat-label">Chưa đặt tên</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-actions">
+      <button class="btn btn-primary" id="btn-scan">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        Quét lại profile
+      </button>
+      <button class="btn btn-success" id="btn-create-all">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Tạo tất cả shortcut
+      </button>
+      <button class="btn btn-secondary" id="btn-open-desktop">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Mở Desktop
+      </button>
+    </div>
+    <div class="toolbar-filters">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" id="search-input" placeholder="Tìm kiếm profile..." />
+      </div>
+      <select id="group-filter" class="select-filter">
+        <option value="">Tất cả nhóm</option>
+        <option value="Seeding">Seeding</option>
+        <option value="Ads">Ads</option>
+        <option value="BM">BM</option>
+        <option value="Khách hàng">Khách hàng</option>
+        <option value="Cá nhân">Cá nhân</option>
+        <option value="Khác">Khác</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <main class="main" id="main-content">
+    <!-- Empty state -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+      <h3>Chưa có profile nào</h3>
+      <p>Bấm <strong>"Quét lại profile"</strong> để tìm các tài khoản Chrome trên máy</p>
+      <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">
+        Quét profile Chrome
+      </button>
+    </div>
+
+    <!-- Profile list -->
+    <div class="profile-grid" id="profile-grid" style="display:none"></div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading" style="display:none">
+      <div class="spinner"></div>
+      <p>Đang quét profile Chrome...</p>
+    </div>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
