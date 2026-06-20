@@ -16,11 +16,11 @@ Người dùng (Tuyen Thanh, UP Media) cần app Windows giúp quản lý nhiề
 |---|---|
 | Username Windows | `Lenovo` |
 | Chrome exe | `C:\Program Files\Google\Chrome\Application\chrome.exe` |
-| **Chrome User Data** | `D:\No Delete\Google\Chrome\User Data` ← **ổ D, không phải ổ C** |
+| **Chrome User Data** | `C:\Users\Lenovo\AppData\Local\Google\Chrome\User Data` (mặc định sau khi cài lại Chrome) |
 | Python | `C:\Users\Lenovo\AppData\Local\Programs\Python\Python311\python.exe` |
 | Desktop | `C:\Users\Lenovo\OneDrive\Desktop` ← nằm trong OneDrive |
 
-> **Lưu ý quan trọng:** Chrome User Data nằm ở ổ D (không phải `%LOCALAPPDATA%` mặc định). App phải tự quét nhiều đường dẫn hoặc cho phép người dùng chọn thủ công.
+> **Lưu ý:** App vẫn hỗ trợ quét nhiều đường dẫn và có nút chọn thủ công, nhưng sau khi người dùng cài lại Chrome thì dùng đường dẫn mặc định `%LOCALAPPDATA%` là đủ.
 
 ---
 
@@ -176,4 +176,4 @@ npm run build:win
 
 | Lỗi | Nguyên nhân | Cách fix |
 |---|---|---|
-| "Không tìm thấy thư mục profile Chrome" | Chrome User Data ở `D:\No Delete\...` thay vì ổ C | Cập nhật `findUserDataPath()` quét nhiều đường dẫn + thêm nút chọn thủ công |
+| "Không tìm thấy thư mục profile Chrome" | Chrome chưa được mở lần nào sau khi cài | Mở Chrome ít nhất 1 lần rồi quét lại |
