@@ -153,6 +153,29 @@ function renderSidebar() {
     applyFilter();
   });
   sl.appendChild(socialEl);
+
+  // Per-site social sub-filters
+  if (socialSitesConfig.length) {
+    const siteSubWrap = document.createElement('div');
+    siteSubWrap.className = 'sidebar-sub';
+    socialSitesConfig.forEach(site => {
+      const siteCnt = allProfiles.filter(p => {
+        const sc = profileSocialCache[p.profileDirectory];
+        return sc && sc[site.id]?.loggedIn;
+      }).length;
+      const siteActive = activeSidebarFilter?.type==='login' && activeSidebarFilter?.loginType==='social-site' && activeSidebarFilter?.siteId===site.id;
+      const siteEl = document.createElement('div');
+      siteEl.className = `sidebar-item${siteActive ? ' active' : ''}`;
+      siteEl.innerHTML = `<span>${socialIcon(site.id)} ${eh(site.name)}</span><span class="sidebar-count">${siteCnt}</span>`;
+      siteEl.addEventListener('click', e => {
+        e.stopPropagation();
+        activeSidebarFilter = { type:'login', loginType:'social-site', siteId: site.id };
+        renderSidebar(); applyFilter();
+      });
+      siteSubWrap.appendChild(siteEl);
+    });
+    sl.appendChild(siteSubWrap);
+  }
 }
 
 // ── Filter ────────────────────────────────────────────────
@@ -172,6 +195,9 @@ function applyFilter() {
       } else if (f.type === 'login' && f.loginType === 'social') {
         const sc = profileSocialCache[p.profileDirectory];
         matchSidebar = !!(sc && Object.values(sc).some(s=>s.loggedIn));
+      } else if (f.type === 'login' && f.loginType === 'social-site') {
+        const sc = profileSocialCache[p.profileDirectory];
+        matchSidebar = !!(sc && sc[f.siteId]?.loggedIn);
       }
     }
 
@@ -231,29 +257,40 @@ async function buildAvatarEl(profile) {
   return el;
 }
 
-// ── Group tags on card (multi-sub support) ────────────────
-function buildGroupTags(profile, card) {
-  const row = card.querySelector('.groups-row');
-  row.innerHTML = '';
-
+// ── Group tags on card ────────────────────────────────────
+function renderTagsInto(container, profile, card) {
+  container.innerHTML = '';
   (profile.groups || []).forEach(g => {
     const selectedSubs = (profile.subGroups || {})[g] || [];
     const tag = document.createElement('span');
     tag.className = `group-tag gc-${groupClass(g)}`;
     const subHtml = selectedSubs.length
-      ? selectedSubs.map(s=>`<span class="group-tag-sub">· ${eh(s)}</span>`).join('')
+      ? selectedSubs.map(s => `<span class="group-tag-sub">· ${eh(s)}</span>`).join('')
       : '';
     tag.innerHTML = `${eh(g)}${subHtml}<span class="remove-tag" data-group="${ea(g)}" title="Xóa khỏi nhóm">&times;</span>`;
     tag.querySelector('.remove-tag').addEventListener('click', async () => {
       profile.groups = profile.groups.filter(x => x !== g);
       const subs = { ...profile.subGroups }; delete subs[g]; profile.subGroups = subs;
       await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
-      buildGroupTags(profile, card); refreshAvatarInCard(card, profile);
+      buildGroupTags(profile, card);
+      refreshAvatarInCard(card, profile);
     });
-    row.appendChild(tag);
+    container.appendChild(tag);
   });
+}
 
-  // Add group dropdown
+function buildGroupTags(profile, card) {
+  const row = card.querySelector('.groups-row');
+  row.innerHTML = '';
+
+  // Tags container (updated independently when subs change)
+  const tagsWrap = document.createElement('div');
+  tagsWrap.className = 'tags-wrap';
+  tagsWrap.style.cssText = 'display:contents';
+  renderTagsInto(tagsWrap, profile, card);
+  row.appendChild(tagsWrap);
+
+  // Dropdown — inline-expand approach (no hover submenu)
   const wrap = document.createElement('div');
   wrap.className = 'group-dropdown';
   const addBtn = document.createElement('button');
@@ -262,68 +299,92 @@ function buildGroupTags(profile, card) {
 
   const menu = document.createElement('div');
   menu.className = 'group-dropdown-menu';
-  // Fix 3: scrollable dropdown
-  menu.style.cssText = 'max-height:220px;overflow-y:auto';
+  menu.style.cssText = 'max-height:300px;overflow-y:auto;min-width:170px';
 
   allGroups.forEach(g => {
     const selected = (profile.groups || []).includes(g);
     const subs = allGroupSubs[g] || [];
-    const selectedSubs = ((profile.subGroups || {})[g] || []);
 
     const item = document.createElement('div');
-    item.className = `group-dropdown-item${selected ? ' selected' : ''}`;
-    item.innerHTML = `<span class="check">${selected ? '✓' : ''}</span><span>${eh(g)}</span>${subs.length ? '<span style="margin-left:auto;font-size:10px;opacity:.5">▸</span>' : ''}`;
-    item.style.position = 'relative';
+    // Override to column layout for items with subs
+    item.style.cssText = 'display:flex;flex-direction:column;align-items:stretch;cursor:default;position:relative';
 
+    // Main row: check + label + expand arrow
+    const mainRow = document.createElement('div');
+    mainRow.className = `group-dropdown-item${selected ? ' selected' : ''}`;
+    mainRow.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;margin:0';
+    mainRow.innerHTML = `<span class="check">${selected ? '✓' : ''}</span><span style="flex:1">${eh(g)}</span>`;
+
+    let subPanel = null;
     if (subs.length) {
-      // Sub-menu with multi-select checkboxes
-      const subMenu = document.createElement('div');
-      subMenu.className = 'group-sub-menu';
+      const expandArrow = document.createElement('span');
+      expandArrow.style.cssText = 'font-size:10px;opacity:.45;padding:0 2px;transition:transform .15s';
+      expandArrow.textContent = selected ? '▾' : '▸';
 
-      function renderSubItems() {
-        subMenu.innerHTML = '';
-        subs.forEach(sub => {
-          const isSubSel = selectedSubs.includes(sub);
-          const subItem = document.createElement('div');
-          subItem.className = `group-dropdown-item${isSubSel ? ' selected' : ''}`;
-          subItem.innerHTML = `<span class="check">${isSubSel ? '✓' : ''}</span>${eh(sub)}`;
-          subItem.addEventListener('click', async e => {
-            e.stopPropagation();
-            if (!profile.groups.includes(g)) profile.groups = [...(profile.groups||[]), g];
-            const currentSubs = ((profile.subGroups||{})[g] || []);
-            const newSubs = isSubSel
-              ? currentSubs.filter(x => x !== sub)
-              : [...currentSubs, sub];
-            profile.subGroups = { ...(profile.subGroups||{}), [g]: newSubs };
-            await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
-            buildGroupTags(profile, card); refreshAvatarInCard(card, profile);
-          });
-          subMenu.appendChild(subItem);
+      subPanel = document.createElement('div');
+      subPanel.style.cssText = `display:${selected ? 'block' : 'none'};padding:3px 8px 5px 28px;background:var(--bg);border-top:1px solid var(--border)`;
+
+      subs.forEach(sub => {
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:12px;user-select:none;font-weight:400;color:var(--text)';
+        // Prevent label click from bubbling and closing dropdown
+        lbl.addEventListener('mousedown', e => e.stopPropagation());
+        lbl.addEventListener('click', e => e.stopPropagation());
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = ((profile.subGroups || {})[g] || []).includes(sub);
+        cb.style.cssText = 'cursor:pointer;accent-color:var(--primary)';
+        cb.addEventListener('change', async () => {
+          if (!profile.groups.includes(g)) {
+            profile.groups = [...(profile.groups || []), g];
+            mainRow.classList.add('selected');
+            mainRow.querySelector('.check').textContent = '✓';
+          }
+          const current = (profile.subGroups || {})[g] || [];
+          profile.subGroups = {
+            ...(profile.subGroups || {}),
+            [g]: cb.checked ? [...current, sub] : current.filter(x => x !== sub)
+          };
+          await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
+          // Update only tags, keep dropdown open
+          const tagsWrap = card.querySelector('.tags-wrap');
+          if (tagsWrap) renderTagsInto(tagsWrap, profile, card);
+          refreshAvatarInCard(card, profile);
         });
-      }
-      renderSubItems();
-      item.appendChild(subMenu);
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(sub));
+        subPanel.appendChild(lbl);
+      });
 
-      let _t;
-      item.addEventListener('mouseenter', () => { clearTimeout(_t); subMenu.classList.add('open'); });
-      item.addEventListener('mouseleave', () => { _t = setTimeout(() => subMenu.classList.remove('open'), 180); });
-      subMenu.addEventListener('mouseenter', () => clearTimeout(_t));
-      subMenu.addEventListener('mouseleave', () => subMenu.classList.remove('open'));
+      // Toggle expand on arrow click
+      expandArrow.addEventListener('click', e => {
+        e.stopPropagation();
+        const show = subPanel.style.display === 'none';
+        subPanel.style.display = show ? 'block' : 'none';
+        expandArrow.textContent = show ? '▾' : '▸';
+      });
+
+      mainRow.appendChild(expandArrow);
+      item.appendChild(mainRow);
+      item.appendChild(subPanel);
+    } else {
+      item.appendChild(mainRow);
     }
 
-    // Click on group itself toggles group membership
-    item.addEventListener('click', async e => {
-      if (e.target.closest('.group-sub-menu')) return;
+    // Click main row → toggle group membership
+    mainRow.addEventListener('click', async e => {
       e.stopPropagation();
       if (selected) {
-        profile.groups = (profile.groups||[]).filter(x => x !== g);
-        const s = { ...(profile.subGroups||{}) }; delete s[g]; profile.subGroups = s;
+        profile.groups = (profile.groups || []).filter(x => x !== g);
+        const s = { ...(profile.subGroups || {}) }; delete s[g]; profile.subGroups = s;
       } else {
-        profile.groups = [...(profile.groups||[]), g];
+        profile.groups = [...(profile.groups || []), g];
       }
       await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
       menu.classList.remove('open');
-      buildGroupTags(profile, card); refreshAvatarInCard(card, profile);
+      buildGroupTags(profile, card);
+      refreshAvatarInCard(card, profile);
     });
 
     menu.appendChild(item);

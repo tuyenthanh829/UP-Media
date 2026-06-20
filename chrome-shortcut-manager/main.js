@@ -85,7 +85,30 @@ ipcMain.handle('check-duplicate-name', async (_, profileDirectory, name) => {
   return { isDuplicate: false };
 });
 
+function isChromeRunningForProfile(profileDirectory) {
+  return new Promise(resolve => {
+    exec('wmic process where "name=\'chrome.exe\'" get CommandLine /format:list', (err, stdout) => {
+      if (err || !stdout) { resolve(false); return; }
+      const lower = stdout.toLowerCase();
+      const dir = profileDirectory.toLowerCase();
+      resolve(lower.includes(`--profile-directory=${dir}`) || lower.includes(`profile-directory="${dir}"`));
+    });
+  });
+}
+
 ipcMain.handle('delete-chrome-profile', async (_, profilePath, profileDirectory, displayName) => {
+  const running = await isChromeRunningForProfile(profileDirectory);
+  if (running) {
+    await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Chrome đang mở',
+      message: `Không thể xóa — Chrome đang chạy profile "${displayName}"`,
+      detail: 'Vui lòng đóng Chrome trước rồi thử lại.\nBấm nút "Đóng tất cả Chrome" trên toolbar để tắt tất cả.',
+      buttons: ['OK']
+    });
+    return { success: false, cancelled: true };
+  }
+
   const { response } = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
     title: 'Xác nhận xóa profile',
