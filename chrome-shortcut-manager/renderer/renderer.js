@@ -1,5 +1,7 @@
 let allProfiles = [];
 let allGroups = [];
+let activeGroupFilters = new Set(); // empty = tất cả
+let currentFiltered = [];
 
 const DEFAULT_GROUPS = ['Seeding', 'Ads', 'BM', 'Khách hàng', 'Cá nhân', 'Khác'];
 
@@ -16,11 +18,58 @@ function avatarClass(groups) {
 }
 function avatarLetter(name) { return (name || '?').charAt(0).toUpperCase(); }
 
-function refreshGroupFilter() {
-  const sel = document.getElementById('group-filter');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Tất cả nhóm</option>' +
-    allGroups.map(g => `<option value="${eh(g)}" ${g===cur?'selected':''}>${eh(g)}</option>`).join('');
+// ── Multi-group filter ────────────────────────────────────
+function buildGroupFilterDropdown() {
+  const dd = document.getElementById('group-filter-dropdown');
+  dd.innerHTML = '';
+
+  // "Tất cả" option
+  const allItem = document.createElement('div');
+  allItem.className = `gf-item${activeGroupFilters.size === 0 ? ' selected' : ''}`;
+  allItem.innerHTML = `<span class="gf-check">${activeGroupFilters.size === 0 ? '✓' : ''}</span> Tất cả nhóm`;
+  allItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    activeGroupFilters.clear();
+    buildGroupFilterDropdown();
+    updateGroupFilterLabel();
+    applyFilter();
+  });
+  dd.appendChild(allItem);
+
+  const div = document.createElement('div');
+  div.className = 'gf-divider';
+  dd.appendChild(div);
+
+  allGroups.forEach(g => {
+    const selected = activeGroupFilters.has(g);
+    const item = document.createElement('div');
+    item.className = `gf-item${selected ? ' selected' : ''}`;
+    item.innerHTML = `<span class="gf-check">${selected ? '✓' : ''}</span> ${eh(g)}`;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeGroupFilters.has(g)) activeGroupFilters.delete(g);
+      else activeGroupFilters.add(g);
+      buildGroupFilterDropdown();
+      updateGroupFilterLabel();
+      applyFilter();
+    });
+    dd.appendChild(item);
+  });
+}
+
+function updateGroupFilterLabel() {
+  const label = document.getElementById('group-filter-label');
+  const btn = document.getElementById('group-filter-btn');
+  if (activeGroupFilters.size === 0) {
+    label.textContent = 'Tất cả nhóm';
+    btn.classList.remove('active');
+  } else if (activeGroupFilters.size === 1) {
+    label.textContent = [...activeGroupFilters][0];
+    btn.classList.add('active');
+  } else {
+    label.textContent = `${activeGroupFilters.size} nhóm`;
+    btn.classList.add('active');
+  }
 }
 
 // ── Toast ─────────────────────────────────────────────────
@@ -62,7 +111,6 @@ async function buildAvatarEl(profile) {
   }
 
   el.textContent = avatarLetter(profile.shortcutName || profile.chromeProfileName);
-  // Badge số thứ tự
   const badge = document.createElement('span');
   badge.className = 'profile-index-badge';
   badge.textContent = profile.profileDirectory === 'Default' ? '★' : `#${profile.displayIndex}`;
@@ -88,7 +136,6 @@ function buildGroupTags(profile, card) {
     row.appendChild(tag);
   });
 
-  // Nút thêm nhóm
   const wrap = document.createElement('div');
   wrap.className = 'group-dropdown';
 
@@ -179,7 +226,7 @@ async function buildCard(profile) {
 
     <!-- Cache info -->
     <div class="cache-info">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></ellipse></svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
       Cache: <span class="cache-size loading" data-profile-path="${ea(profile.profilePath)}">đang tính...</span>
       <button class="btn btn-ghost btn-xs btn-clear-cache" data-profile-path="${ea(profile.profilePath)}" title="Xóa cache profile này">Xóa cache</button>
     </div>
@@ -202,13 +249,11 @@ async function buildCard(profile) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
         Mở profile
       </button>
-      <button class="btn btn-success btn-sm btn-create" data-dir="${ea(profile.profileDirectory)}">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        Tạo shortcut
+      <button class="btn btn-success btn-icon btn-create" data-dir="${ea(profile.profileDirectory)}" title="Tạo shortcut Desktop">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M12 7v6M9 10h6"/></svg>
       </button>
-      <button class="btn btn-danger btn-sm btn-delete" data-dir="${ea(profile.profileDirectory)}" ${!profile.hasShortcut?'disabled':''}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
-        Xóa shortcut
+      <button class="btn btn-danger btn-icon btn-delete" data-dir="${ea(profile.profileDirectory)}" title="Xóa shortcut Desktop" ${!profile.hasShortcut?'disabled':''}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="9" y1="7" x2="15" y2="13"/><line x1="15" y1="7" x2="9" y2="13"/></svg>
       </button>
     </div>
   `;
@@ -228,7 +273,6 @@ async function buildCard(profile) {
     if (size > 100 * 1024 * 1024) cacheSpan.style.color = 'var(--danger)';
   });
 
-  // Xóa cache 1 profile
   card.querySelector('.btn-clear-cache').addEventListener('click', async (e) => {
     const pp = e.currentTarget.dataset.profilePath;
     e.currentTarget.disabled = true;
@@ -241,7 +285,6 @@ async function buildCard(profile) {
     e.currentTarget.disabled = false;
   });
 
-  // Ghi chú toggle
   card.querySelector('.notes-toggle').addEventListener('click', (e) => {
     const toggle = e.currentTarget;
     const area = card.querySelector('.notes-area');
@@ -249,7 +292,6 @@ async function buildCard(profile) {
     area.classList.toggle('open');
   });
 
-  // Ghi chú save on blur
   card.querySelector('.notes-textarea').addEventListener('blur', async (e) => {
     const notes = e.target.value;
     const dir = e.target.dataset.dir;
@@ -257,7 +299,6 @@ async function buildCard(profile) {
     if (!p) return;
     p.notes = notes;
     await window.app.saveProfileConfig(dir, { notes });
-    // Cập nhật dot indicator
     const toggle = card.querySelector('.notes-toggle');
     const existingDot = toggle.querySelector('.notes-dot');
     if (notes.trim() && !existingDot) {
@@ -269,7 +310,6 @@ async function buildCard(profile) {
     }
   });
 
-  // Đổi tên shortcut
   card.querySelector('.input-name').addEventListener('blur', async (e) => {
     const name = e.target.value.trim();
     const dir = e.target.dataset.dir;
@@ -281,14 +321,12 @@ async function buildCard(profile) {
     refreshAvatarInCard(card, p);
   });
 
-  // Mở profile
   card.querySelector('.btn-open').addEventListener('click', async (e) => {
     const res = await window.app.openProfile(e.currentTarget.dataset.dir);
     if (res.success) showToast('Đang mở Chrome profile...', 'info');
     else showToast(res.error, 'error');
   });
 
-  // Tạo shortcut
   card.querySelector('.btn-create').addEventListener('click', async (e) => {
     const dir = e.currentTarget.dataset.dir;
     const p = allProfiles.find(x => x.profileDirectory === dir);
@@ -303,7 +341,6 @@ async function buildCard(profile) {
     } else showToast(res.error, 'error');
   });
 
-  // Xóa shortcut
   card.querySelector('.btn-delete').addEventListener('click', async (e) => {
     const dir = e.currentTarget.dataset.dir;
     const p = allProfiles.find(x => x.profileDirectory === dir);
@@ -330,8 +367,20 @@ function refreshCardStatus(card, profile) {
 
 // ── Render list ───────────────────────────────────────────
 async function renderProfiles(profiles) {
+  currentFiltered = profiles;
   const grid = document.getElementById('profile-grid');
   grid.innerHTML = '';
+
+  // Update "Mở tất cả" button
+  const btnOpenAll = document.getElementById('btn-open-all');
+  const isFiltered = activeGroupFilters.size > 0 || document.getElementById('search-input').value.trim();
+  if (isFiltered && profiles.length > 1) {
+    btnOpenAll.style.display = '';
+    document.getElementById('open-all-count').textContent = profiles.length;
+  } else {
+    btnOpenAll.style.display = 'none';
+  }
+
   if (!profiles.length) {
     grid.innerHTML = '<div class="no-results"><h3>Không tìm thấy profile nào</h3><p>Thử thay đổi bộ lọc hoặc từ khóa</p></div>';
     return;
@@ -342,9 +391,9 @@ async function renderProfiles(profiles) {
 // ── Filter ────────────────────────────────────────────────
 function applyFilter() {
   const q = document.getElementById('search-input').value.trim().toLowerCase();
-  const g = document.getElementById('group-filter').value;
   const filtered = allProfiles.filter(p => {
-    const matchGroup = !g || (p.groups || []).includes(g);
+    const matchGroup = activeGroupFilters.size === 0 ||
+      (p.groups || []).some(g => activeGroupFilters.has(g));
     const matchQ = !q ||
       (p.profileDirectory||'').toLowerCase().includes(q) ||
       (p.shortcutName||'').toLowerCase().includes(q) ||
@@ -378,6 +427,17 @@ async function scanProfiles() {
   }
 }
 
+// ── Mở tất cả đang hiển thị ──────────────────────────────
+async function openAllFiltered() {
+  if (!currentFiltered.length) return;
+  const btn = document.getElementById('btn-open-all');
+  btn.disabled = true;
+  const dirs = currentFiltered.map(p => p.profileDirectory);
+  const res = await window.app.openProfilesBatch(dirs);
+  btn.disabled = false;
+  showToast(`Đã mở ${res.ok} profile${res.fail ? `, ${res.fail} lỗi` : ''}`, res.fail ? 'warning' : 'success');
+}
+
 // ── Create all shortcuts ───────────────────────────────────
 async function createAllShortcuts() {
   if (!allProfiles.length) { showToast('Chưa có profile nào.', 'warning'); return; }
@@ -396,6 +456,20 @@ async function createAllShortcuts() {
   else showToast(`OK: ${ok}, lỗi: ${fail}`, 'warning');
 }
 
+// ── Remove bad extensions ──────────────────────────────────
+async function removeBadExtensions() {
+  const btn = document.getElementById('btn-remove-ext');
+  btn.disabled = true;
+  btn.textContent = 'Đang dọn...';
+  const res = await window.app.removeBadExtensions();
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Dọn tiện ích`;
+  if (res.success) {
+    if (res.totalRemoved === 0) showToast(`Không tìm thấy tiện ích McAfee/IDM nào để xóa`, 'info');
+    else showToast(`Đã xóa ${res.totalRemoved} tiện ích (bỏ qua ${res.skipped} profile được bảo vệ)`, 'success');
+  }
+}
+
 // ── Storage modal ─────────────────────────────────────────
 async function openStorageModal() {
   document.getElementById('modal-storage').classList.remove('hidden');
@@ -407,7 +481,6 @@ async function openStorageModal() {
   const sizes = await window.app.getAllCacheSizes();
   let total = 0;
 
-  // Sort by size desc
   const entries = allProfiles.map(p => ({
     p, size: sizes[p.profileDirectory] || 0
   })).sort((a,b) => b.size - a.size);
@@ -416,13 +489,12 @@ async function openStorageModal() {
     total += size;
     const li = document.createElement('li');
     li.className = 'storage-item';
-    li.dataset.profilePath = p.profilePath;
     li.innerHTML = `
       <div class="storage-item-name">
         <strong>${eh(p.shortcutName || p.chromeProfileName || p.profileDirectory)}</strong>
         <span style="color:var(--muted);font-size:11px;margin-left:6px">${eh(p.profileDirectory)}</span>
       </div>
-      <span class="storage-item-size ${size===0?'':''}">  ${fmtBytes(size)}</span>
+      <span class="storage-item-size">${fmtBytes(size)}</span>
       <button class="btn btn-outline btn-xs btn-clear-one" data-path="${ea(p.profilePath)}">Xóa</button>
     `;
     li.querySelector('.btn-clear-one').addEventListener('click', async (e) => {
@@ -430,10 +502,7 @@ async function openStorageModal() {
       e.currentTarget.disabled = true;
       const res = await window.app.clearCache(path);
       if (res.success) {
-        li.querySelector('.storage-item-size').textContent = '0 B';
-        // Update total
         showToast(`Đã xóa ${res.freedText}`, 'success');
-        // Re-open to refresh
         openStorageModal();
       } else showToast(res.error, 'error');
     });
@@ -493,18 +562,25 @@ function renderGroupList() {
 async function saveGroups() {
   allGroups = tempGroups.filter(g=>g.trim());
   await window.app.saveGroups(allGroups);
-  refreshGroupFilter();
+  buildGroupFilterDropdown();
   closeGroupModal();
   showToast('Đã lưu danh sách nhóm', 'success');
 }
 
 // ── New profile modal ─────────────────────────────────────
-function openNewProfileModal() { document.getElementById('modal-new-profile').classList.remove('hidden'); }
-function closeNewProfileModal() { document.getElementById('modal-new-profile').classList.add('hidden'); }
+function openNewProfileModal() {
+  document.getElementById('new-profile-name').value = '';
+  document.getElementById('modal-new-profile').classList.remove('hidden');
+  setTimeout(() => document.getElementById('new-profile-name').focus(), 100);
+}
+function closeNewProfileModal() {
+  document.getElementById('modal-new-profile').classList.add('hidden');
+}
 async function confirmCreateProfile() {
+  const name = document.getElementById('new-profile-name').value.trim();
   closeNewProfileModal();
-  const res = await window.app.createChromeProfile();
-  if (res.success) showToast(`Chrome mở để tạo tài khoản mới (${res.profileDirectory}). Bấm "Quét lại" sau khi xong.`, 'success');
+  const res = await window.app.createChromeProfile(name);
+  if (res.success) showToast(`Chrome mở với tài khoản mới (${res.profileDirectory})${name ? ` — đã đặt tên "${name}"` : ''}. Bấm "Quét lại" sau khi xong.`, 'success');
   else showToast(res.error, 'error');
 }
 
@@ -522,14 +598,20 @@ function ea(s) { return String(s||'').replace(/"/g,'&quot;'); }
 // ── Close dropdowns on outside click ─────────────────────
 document.addEventListener('click', () => {
   document.querySelectorAll('.group-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  document.getElementById('group-filter-dropdown').classList.add('hidden');
 });
 
 // ── Init ─────────────────────────────────────────────────
 document.getElementById('btn-scan').addEventListener('click', scanProfiles);
 document.getElementById('btn-create-all').addEventListener('click', createAllShortcuts);
-document.getElementById('btn-open-desktop').addEventListener('click', () => window.app.openDesktop());
+document.getElementById('btn-open-all').addEventListener('click', openAllFiltered);
+document.getElementById('btn-remove-ext').addEventListener('click', removeBadExtensions);
 document.getElementById('search-input').addEventListener('input', applyFilter);
-document.getElementById('group-filter').addEventListener('change', applyFilter);
+
+document.getElementById('group-filter-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('group-filter-dropdown').classList.toggle('hidden');
+});
 
 document.getElementById('btn-pick-folder').addEventListener('click', async () => {
   const chosen = await window.app.pickUserDataFolder();
@@ -554,6 +636,7 @@ document.getElementById('btn-new-profile').addEventListener('click', openNewProf
 document.getElementById('modal-new-profile-close').addEventListener('click', closeNewProfileModal);
 document.getElementById('btn-cancel-new-profile').addEventListener('click', closeNewProfileModal);
 document.getElementById('btn-confirm-new-profile').addEventListener('click', confirmCreateProfile);
+document.getElementById('new-profile-name').addEventListener('keydown', e => { if(e.key==='Enter') confirmCreateProfile(); });
 document.getElementById('modal-new-profile').addEventListener('click', e => { if(e.target===e.currentTarget) closeNewProfileModal(); });
 
 document.getElementById('btn-storage').addEventListener('click', openStorageModal);
@@ -573,6 +656,6 @@ document.getElementById('modal-storage').addEventListener('click', e => { if(e.t
 
 window.addEventListener('DOMContentLoaded', async () => {
   allGroups = await window.app.getGroups();
-  refreshGroupFilter();
+  buildGroupFilterDropdown();
   scanProfiles();
 });

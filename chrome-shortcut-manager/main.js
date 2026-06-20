@@ -6,6 +6,7 @@ const chromeProfiles = require('./src/chromeProfiles');
 const shortcuts = require('./src/shortcuts');
 const configStore = require('./src/configStore');
 const storage = require('./src/storage');
+const extensions = require('./src/extensions');
 
 let mainWindow;
 
@@ -45,18 +46,16 @@ ipcMain.handle('scan-profiles', async () => {
   return {
     profiles: profiles.map((p, idx) => {
       const saved = config.profiles?.[p.profileDirectory] || {};
-      // groups migration
       const groups = saved.groups || (saved.group ? [saved.group] : []);
       const shortcutName = saved.shortcutName || p.chromeProfileName || p.profileDirectory;
       return {
         ...p,
-        // Tên hiển thị khoa học: dùng số thứ tự dựa trên profileDirectory
         displayIndex: p.profileDirectory === 'Default' ? 0 : (parseInt(p.profileDirectory.replace('Profile ', '')) || idx + 1),
         shortcutName,
         groups,
         notes: saved.notes || '',
         hasShortcut: shortcuts.shortcutExists(shortcutName),
-        cacheSize: null // load lazy
+        cacheSize: null
       };
     }),
     userDataPath
@@ -97,7 +96,15 @@ ipcMain.handle('open-profile', async (_, profileDirectory) => {
   }
 });
 
-ipcMain.handle('open-desktop', async () => shell.openPath(shortcuts.getDesktopPath()));
+ipcMain.handle('open-profiles-batch', async (_, profileDirectories) => {
+  let ok = 0, fail = 0;
+  for (const dir of profileDirectories) {
+    try { shortcuts.openProfile(dir); ok++; await new Promise(r => setTimeout(r, 300)); }
+    catch { fail++; }
+  }
+  return { success: true, ok, fail };
+});
+
 ipcMain.handle('check-shortcut-exists', async (_, name) => shortcuts.shortcutExists(name));
 
 // ── Chọn thư mục thủ công ─────────────────────────────────
@@ -120,11 +127,14 @@ ipcMain.handle('get-groups', async () => configStore.getGroups());
 ipcMain.handle('save-groups', async (_, groups) => configStore.saveGroups(groups));
 
 // ── Tạo Chrome profile mới ─────────────────────────────────
-ipcMain.handle('create-chrome-profile', async () => {
+ipcMain.handle('create-chrome-profile', async (_, friendlyName) => {
   try {
     const config = configStore.getConfig();
     const { userDataPath } = chromeProfiles.scanProfiles(config.settings?.chromeUserDataPath || null);
     const newDir = chromeProfiles.getNextProfileDirectory(userDataPath);
+    if (friendlyName && friendlyName.trim()) {
+      configStore.saveProfileConfig(newDir, { shortcutName: friendlyName.trim() });
+    }
     shortcuts.openProfile(newDir);
     return { success: true, profileDirectory: newDir };
   } catch (err) {
@@ -176,4 +186,26 @@ ipcMain.handle('clear-all-cache', async () => {
     catch { errorCount++; }
   }
   return { success: true, freed: totalFreed, freedText: storage.formatBytes(totalFreed), errorCount };
+});
+
+// ── Xóa tiện ích McAfee / IDM ─────────────────────────────
+ipcMain.handle('remove-bad-extensions', async () => {
+  const config = configStore.getConfig();
+  const customPath = config.settings?.chromeUserDataPath || null;
+  const { profiles } = chromeProfiles.scanProfiles(customPath);
+  let totalRemoved = 0;
+  let skipped = 0;
+  const results = [];
+
+  for (const p of profiles) {
+    const saved = config.profiles?.[p.profileDirectory] || {};
+    const shortcutName = saved.shortcutName || p.chromeProfileName || p.profileDirectory;
+    const isExempt = extensions.EXEMPT_NAMES.some(e => shortcutName === e);
+    if (isExempt) { skipped++; continue; }
+    const { removed } = extensions.removeExtensionsFromProfile(p.profilePath);
+    totalRemoved += removed;
+    if (removed > 0) results.push({ name: shortcutName, removed });
+  }
+
+  return { success: true, totalRemoved, skipped, results };
 });
