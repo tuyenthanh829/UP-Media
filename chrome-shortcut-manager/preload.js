@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('app', {
   getProfileHistory: (profilePath) => ipcRenderer.invoke('get-profile-history', profilePath),
   getGoogleAccounts: (profilePath) => ipcRenderer.invoke('get-google-accounts', profilePath),
   getSocialStatus: (profilePath, sites) => ipcRenderer.invoke('get-social-status', profilePath, sites),
+  getSocialStatusBatch: (profilePaths, sites) => ipcRenderer.invoke('get-social-status-batch', profilePaths, sites),
   getSocialSites: () => ipcRenderer.invoke('get-social-sites'),
   saveSocialSites: (sites) => ipcRenderer.invoke('save-social-sites', sites),
+  renameGroupInProfiles: (oldName, newName) => ipcRenderer.invoke('rename-group-in-profiles', oldName, newName),
 });

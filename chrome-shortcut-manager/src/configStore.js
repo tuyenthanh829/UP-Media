@@ -19,12 +19,15 @@ function load() {
     if (!cfg.groups) cfg.groups = DEFAULT_GROUPS;
     if (!cfg.groupSubs) cfg.groupSubs = {};
     if (!cfg.profiles) cfg.profiles = {};
-    // Migrate: group (string) → groups (array)
     for (const p of Object.values(cfg.profiles)) {
       if (p.group && !p.groups) { p.groups = [p.group]; delete p.group; }
       if (!p.groups) p.groups = [];
       if (!p.notes) p.notes = '';
       if (!p.subGroups) p.subGroups = {};
+      // Migrate: subGroups value string → array
+      for (const [g, v] of Object.entries(p.subGroups)) {
+        if (typeof v === 'string') p.subGroups[g] = [v];
+      }
     }
     return cfg;
   } catch {
@@ -83,6 +86,25 @@ function saveSocialSites(sites) {
   return save(config);
 }
 
+// Rename a group across all profile configs
+function renameGroupInProfiles(oldName, newName) {
+  const config = load();
+  let changed = false;
+  for (const p of Object.values(config.profiles || {})) {
+    if (p.groups && p.groups.includes(oldName)) {
+      p.groups = p.groups.map(g => g === oldName ? newName : g);
+      changed = true;
+    }
+    if (p.subGroups && p.subGroups[oldName] !== undefined) {
+      p.subGroups[newName] = p.subGroups[oldName];
+      delete p.subGroups[oldName];
+      changed = true;
+    }
+  }
+  if (changed) save(config);
+  return changed;
+}
+
 function getConfig() { return load(); }
 
 module.exports = {
@@ -92,6 +114,7 @@ module.exports = {
   getGroups, saveGroups,
   getGroupSubs, saveGroupSubs,
   getSocialSites, saveSocialSites,
+  renameGroupInProfiles,
   getConfig,
   DEFAULT_GROUPS
 };

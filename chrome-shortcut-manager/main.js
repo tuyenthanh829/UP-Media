@@ -282,3 +282,15 @@ ipcMain.handle('save-social-sites', async (_, sites) => {
   configStore.saveSocialSites(sites);
   return true;
 });
+
+ipcMain.handle('rename-group-in-profiles', async (_, oldName, newName) => {
+  return configStore.renameGroupInProfiles(oldName, newName);
+});
+
+ipcMain.handle('get-social-status-batch', async (_, profilePaths, sites) => {
+  const results = {};
+  for (const { dir, profilePath } of profilePaths) {
+    results[dir] = await social.getSocialStatus(profilePath, sites);
+  }
+  return results;
+});
