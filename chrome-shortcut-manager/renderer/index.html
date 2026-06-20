@@ -33,25 +33,48 @@
 
 <!-- Modal: Tạo profile mới -->
 <div id="modal-new-profile" class="modal-overlay hidden">
-  <div class="modal modal-sm">
+  <div class="modal" style="width:480px">
     <div class="modal-header">
       <h2>Tạo tài khoản Chrome mới</h2>
       <button class="modal-close" id="modal-new-profile-close">&times;</button>
     </div>
-    <div class="modal-body">
-      <div class="new-profile-info">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-        <p>Đặt tên cho tài khoản Chrome mới ngay tại đây để dễ quản lý.</p>
-      </div>
-      <div class="form-row" style="margin-top:14px">
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div class="form-row">
         <label class="form-label">Tên tài khoản</label>
         <input type="text" id="new-profile-name" class="form-input" placeholder="VD: Seeding 01, Ads TPL..." maxlength="50" />
       </div>
-      <p class="text-muted" style="font-size:12px;margin-top:10px;line-height:1.5">App sẽ mở Chrome với tài khoản mới. Sau khi xong, quay lại bấm <strong>"Quét lại"</strong> để thấy tài khoản.</p>
+      <div>
+        <div class="form-label" style="margin-bottom:6px">Nhóm</div>
+        <div id="new-profile-groups-row" class="groups-row" style="min-height:30px;border:1px solid var(--border);border-radius:7px;padding:5px 8px"></div>
+      </div>
+      <div class="form-row" style="align-items:flex-start">
+        <label class="form-label" style="padding-top:4px">Ghi chú</label>
+        <textarea id="new-profile-notes" class="form-input notes-textarea" placeholder="Ghi chú thông tin tài khoản..." rows="2" style="resize:vertical"></textarea>
+      </div>
+      <p class="text-muted" style="font-size:11px;line-height:1.5">App sẽ mở Chrome với tài khoản mới. Sau khi xong, quay lại bấm <strong>"Quét lại"</strong> để thấy tài khoản.</p>
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="btn-confirm-new-profile">Mở Chrome tạo tài khoản</button>
       <button class="btn btn-outline" id="btn-cancel-new-profile">Hủy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Lịch sử duyệt web -->
+<div id="modal-history" class="modal-overlay hidden">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>Lịch sử duyệt web — <span id="history-profile-name"></span></h2>
+      <button class="modal-close" id="modal-history-close">&times;</button>
+    </div>
+    <div class="modal-body" style="padding-top:10px">
+      <div id="history-loading" style="text-align:center;padding:20px;color:var(--muted)">
+        <div class="spinner-sm"></div> Đang đọc lịch sử...
+      </div>
+      <ul id="history-list" class="history-list"></ul>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="btn-close-history">Đóng</button>
     </div>
   </div>
 </div>
@@ -139,6 +162,10 @@
     <button class="btn btn-danger" id="btn-remove-ext" title="Xóa McAfee WebAdvisor và IDM khỏi tất cả Chrome (trừ 2 profile được bảo vệ)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       Dọn tiện ích
+    </button>
+    <button class="btn btn-secondary" id="btn-kill-chrome" title="Đóng tất cả cửa sổ Chrome đang mở">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="9" y1="8" x2="15" y2="14"/><line x1="15" y1="8" x2="9" y2="14"/></svg>
+      Đóng Chrome
     </button>
   </div>
   <div class="toolbar-filters">

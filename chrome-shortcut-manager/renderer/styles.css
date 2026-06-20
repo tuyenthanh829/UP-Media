@@ -208,6 +208,26 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .storage-item-size{font-size:12px;font-weight:600;color:var(--orange);flex-shrink:0}
 .storage-item-size.loading{color:var(--muted);font-weight:400}
 
+/* History modal */
+.history-list{list-style:none;display:flex;flex-direction:column;gap:3px;max-height:340px;overflow-y:auto}
+.history-item{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:background .12s}
+.history-item:hover{background:#eff6ff;border-color:var(--primary)}
+.history-item-title{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.history-item-url{font-size:11px;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-item-time{font-size:10px;color:var(--muted)}
+
+/* Sub-group badge on tags */
+.group-tag-sub{font-size:10px;opacity:.75;margin-left:3px}
+
+/* Group sub-manage */
+.group-item-subs{margin-top:6px;padding-left:10px;border-left:2px solid var(--border);display:flex;flex-direction:column;gap:4px}
+.group-sub-row{display:flex;align-items:center;gap:5px;font-size:12px}
+.group-sub-name{flex:1;color:var(--muted)}
+
+/* Duplicate name warning */
+.name-warn{font-size:11px;color:var(--danger);margin-top:3px;display:none}
+.name-warn.show{display:block}
+
 /* No results */
 .no-results{grid-column:1/-1;text-align:center;padding:50px 20px;color:var(--muted)}
 .no-results h3{font-size:17px;margin-bottom:7px}

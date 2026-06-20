@@ -1,12 +1,14 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { exec } = require('child_process');
 
 const chromeProfiles = require('./src/chromeProfiles');
 const shortcuts = require('./src/shortcuts');
 const configStore = require('./src/configStore');
 const storage = require('./src/storage');
 const extensions = require('./src/extensions');
+const history = require('./src/history');
 
 let mainWindow;
 
@@ -53,6 +55,7 @@ ipcMain.handle('scan-profiles', async () => {
         displayIndex: p.profileDirectory === 'Default' ? 0 : (parseInt(p.profileDirectory.replace('Profile ', '')) || idx + 1),
         shortcutName,
         groups,
+        subGroups: saved.subGroups || {},
         notes: saved.notes || '',
         hasShortcut: shortcuts.shortcutExists(shortcutName),
         cacheSize: null
@@ -65,6 +68,58 @@ ipcMain.handle('scan-profiles', async () => {
 // ── Profile config ─────────────────────────────────────────
 ipcMain.handle('save-profile-config', async (_, profileDirectory, data) => {
   return configStore.saveProfileConfig(profileDirectory, data);
+});
+
+// ── Check duplicate name ────────────────────────────────────
+ipcMain.handle('check-duplicate-name', async (_, profileDirectory, name) => {
+  if (!name || !name.trim()) return { isDuplicate: false };
+  const config = configStore.getConfig();
+  const profiles = config.profiles || {};
+  for (const [dir, p] of Object.entries(profiles)) {
+    if (dir === profileDirectory) continue;
+    if ((p.shortcutName || '').trim().toLowerCase() === name.trim().toLowerCase()) {
+      return { isDuplicate: true, conflictDir: dir, conflictName: p.shortcutName };
+    }
+  }
+  return { isDuplicate: false };
+});
+
+// ── Delete Chrome profile ───────────────────────────────────
+ipcMain.handle('delete-chrome-profile', async (_, profilePath, profileDirectory, displayName) => {
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    title: 'Xác nhận xóa profile',
+    message: `Xóa tài khoản Chrome "${displayName}"?`,
+    detail: `Hành động này sẽ XÓA VĨNH VIỄN tất cả dữ liệu của tài khoản này bao gồm: lịch sử duyệt web, cookie, mật khẩu đã lưu, bookmark...\n\nThư mục: ${profilePath}`,
+    buttons: ['Hủy bỏ', 'XÓA VĨNH VIỄN'],
+    defaultId: 0,
+    cancelId: 0
+  });
+
+  if (response !== 1) return { success: false, cancelled: true };
+
+  try {
+    if (fs.existsSync(profilePath)) {
+      fs.rmSync(profilePath, { recursive: true, force: true });
+    }
+    configStore.deleteProfileConfig(profileDirectory);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: 'Không xóa được: ' + err.message };
+  }
+});
+
+// ── Kill all Chrome ─────────────────────────────────────────
+ipcMain.handle('kill-all-chrome', async () => {
+  return new Promise(resolve => {
+    exec('taskkill /IM chrome.exe /T', (err, stdout, stderr) => {
+      if (err && err.code !== 128) {
+        resolve({ success: false, error: 'Không thể đóng Chrome: ' + err.message });
+      } else {
+        resolve({ success: true });
+      }
+    });
+  });
 });
 
 // ── Shortcuts ──────────────────────────────────────────────
@@ -96,10 +151,19 @@ ipcMain.handle('open-profile', async (_, profileDirectory) => {
   }
 });
 
+ipcMain.handle('open-profile-url', async (_, profileDirectory, url) => {
+  try {
+    shortcuts.openProfileWithUrl(profileDirectory, url);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('open-profiles-batch', async (_, profileDirectories) => {
   let ok = 0, fail = 0;
   for (const dir of profileDirectories) {
-    try { shortcuts.openProfile(dir); ok++; await new Promise(r => setTimeout(r, 300)); }
+    try { shortcuts.openProfile(dir); ok++; await new Promise(r => setTimeout(r, 350)); }
     catch { fail++; }
   }
   return { success: true, ok, fail };
@@ -125,16 +189,20 @@ ipcMain.handle('get-settings', async () => configStore.getConfig().settings || {
 // ── Nhóm ──────────────────────────────────────────────────
 ipcMain.handle('get-groups', async () => configStore.getGroups());
 ipcMain.handle('save-groups', async (_, groups) => configStore.saveGroups(groups));
+ipcMain.handle('get-group-subs', async () => configStore.getGroupSubs());
+ipcMain.handle('save-group-subs', async (_, groupSubs) => configStore.saveGroupSubs(groupSubs));
 
 // ── Tạo Chrome profile mới ─────────────────────────────────
-ipcMain.handle('create-chrome-profile', async (_, friendlyName) => {
+ipcMain.handle('create-chrome-profile', async (_, friendlyName, groups, notes) => {
   try {
     const config = configStore.getConfig();
     const { userDataPath } = chromeProfiles.scanProfiles(config.settings?.chromeUserDataPath || null);
     const newDir = chromeProfiles.getNextProfileDirectory(userDataPath);
-    if (friendlyName && friendlyName.trim()) {
-      configStore.saveProfileConfig(newDir, { shortcutName: friendlyName.trim() });
-    }
+    const saveData = {};
+    if (friendlyName && friendlyName.trim()) saveData.shortcutName = friendlyName.trim();
+    if (Array.isArray(groups) && groups.length) saveData.groups = groups;
+    if (notes && notes.trim()) saveData.notes = notes.trim();
+    if (Object.keys(saveData).length) configStore.saveProfileConfig(newDir, saveData);
     shortcuts.openProfile(newDir);
     return { success: true, profileDirectory: newDir };
   } catch (err) {
@@ -179,8 +247,7 @@ ipcMain.handle('clear-all-cache', async () => {
   const config = configStore.getConfig();
   const customPath = config.settings?.chromeUserDataPath || null;
   const { profiles } = chromeProfiles.scanProfiles(customPath);
-  let totalFreed = 0;
-  let errorCount = 0;
+  let totalFreed = 0, errorCount = 0;
   for (const p of profiles) {
     try { totalFreed += storage.clearProfileCache(p.profilePath); }
     catch { errorCount++; }
@@ -193,8 +260,7 @@ ipcMain.handle('remove-bad-extensions', async () => {
   const config = configStore.getConfig();
   const customPath = config.settings?.chromeUserDataPath || null;
   const { profiles } = chromeProfiles.scanProfiles(customPath);
-  let totalRemoved = 0;
-  let skipped = 0;
+  let totalRemoved = 0, skipped = 0;
   const results = [];
 
   for (const p of profiles) {
@@ -207,5 +273,13 @@ ipcMain.handle('remove-bad-extensions', async () => {
     if (removed > 0) results.push({ name: shortcutName, removed });
   }
 
+  // Also clean registry (runs in background, won't fail the response)
+  extensions.removeFromRegistryAsync().catch(() => {});
+
   return { success: true, totalRemoved, skipped, results };
+});
+
+// ── Lịch sử duyệt web ─────────────────────────────────────
+ipcMain.handle('get-profile-history', async (_, profilePath) => {
+  return history.getProfileHistory(profilePath, 25);
 });
