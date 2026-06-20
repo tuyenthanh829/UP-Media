@@ -10,11 +10,12 @@ contextBridge.exposeInMainWorld('app', {
   checkShortcutExists: (name) => ipcRenderer.invoke('check-shortcut-exists', name),
   pickUserDataFolder: () => ipcRenderer.invoke('pick-user-data-folder'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  // Nhóm
   getGroups: () => ipcRenderer.invoke('get-groups'),
   saveGroups: (groups) => ipcRenderer.invoke('save-groups', groups),
-  // Tạo Chrome profile mới
   createChromeProfile: () => ipcRenderer.invoke('create-chrome-profile'),
-  // Avatar
-  getAvatarDataUrl: (avatarPath) => ipcRenderer.invoke('get-avatar-data-url', avatarPath)
+  getAvatarDataUrl: (p) => ipcRenderer.invoke('get-avatar-data-url', p),
+  getCacheSize: (profilePath) => ipcRenderer.invoke('get-cache-size', profilePath),
+  getAllCacheSizes: () => ipcRenderer.invoke('get-all-cache-sizes'),
+  clearCache: (profilePath) => ipcRenderer.invoke('clear-cache', profilePath),
+  clearAllCache: () => ipcRenderer.invoke('clear-all-cache'),
 });

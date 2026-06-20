@@ -10,15 +10,26 @@ function init(userDataPath) {
 }
 
 function load() {
-  if (!configPath) return { profiles: {}, groups: DEFAULT_GROUPS, settings: { theme: 'light' } };
+  const empty = { profiles: {}, groups: DEFAULT_GROUPS, settings: { theme: 'light' } };
+  if (!configPath) return empty;
   try {
-    if (!fs.existsSync(configPath)) return { profiles: {}, groups: DEFAULT_GROUPS, settings: { theme: 'light' } };
+    if (!fs.existsSync(configPath)) return empty;
     const raw = fs.readFileSync(configPath, 'utf8');
     const cfg = JSON.parse(raw);
     if (!cfg.groups) cfg.groups = DEFAULT_GROUPS;
+    if (!cfg.profiles) cfg.profiles = {};
+    // Migrate: group (string) → groups (array)
+    for (const [dir, p] of Object.entries(cfg.profiles)) {
+      if (p.group && !p.groups) {
+        p.groups = [p.group];
+        delete p.group;
+      }
+      if (!p.groups) p.groups = [];
+      if (!p.notes) p.notes = '';
+    }
     return cfg;
   } catch {
-    return { profiles: {}, groups: DEFAULT_GROUPS, settings: { theme: 'light' }, _error: true };
+    return { ...empty, _error: true };
   }
 }
 
@@ -48,18 +59,12 @@ function saveSettings(settings) {
   return save(config);
 }
 
-function getGroups() {
-  return load().groups || DEFAULT_GROUPS;
-}
-
+function getGroups() { return load().groups || DEFAULT_GROUPS; }
 function saveGroups(groups) {
   const config = load();
   config.groups = groups;
   return save(config);
 }
-
-function getConfig() {
-  return load();
-}
+function getConfig() { return load(); }
 
 module.exports = { init, load, save, saveProfileConfig, saveSettings, getGroups, saveGroups, getConfig, DEFAULT_GROUPS };
