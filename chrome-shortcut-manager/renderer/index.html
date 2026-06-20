@@ -7,8 +7,53 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Toast notification -->
+
+  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
+
+  <!-- Modal quản lý nhóm -->
+  <div id="modal-groups" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Quản lý nhóm</h2>
+        <button class="modal-close" id="modal-groups-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <ul id="group-list" class="group-list"></ul>
+        <div class="group-add-row">
+          <input type="text" id="new-group-input" class="form-input" placeholder="Tên nhóm mới..." maxlength="30" />
+          <button class="btn btn-primary btn-sm" id="btn-add-group">+ Thêm nhóm</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success" id="btn-save-groups">Lưu nhóm</button>
+        <button class="btn btn-outline" id="btn-cancel-groups">Hủy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal tạo Chrome profile mới -->
+  <div id="modal-new-profile" class="modal-overlay hidden">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>Tạo tài khoản Chrome mới</h2>
+        <button class="modal-close" id="modal-new-profile-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="new-profile-info">
+          <div class="info-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <p>App sẽ mở Chrome và tạo một tài khoản mới cho anh.</p>
+          <p class="text-muted">Sau khi Chrome mở, anh đặt tên cho tài khoản trong Chrome, rồi quay lại app bấm <strong>"Quét lại profile"</strong> để thấy tài khoản mới.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btn-confirm-new-profile">Mở Chrome tạo tài khoản mới</button>
+        <button class="btn btn-outline" id="btn-cancel-new-profile">Hủy</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Header -->
   <header class="header">
@@ -29,7 +74,7 @@
         <p class="app-subtitle">Quản lý user Chrome và tạo shortcut ra Desktop</p>
       </div>
     </div>
-    <div class="header-stats" id="stats">
+    <div class="header-stats">
       <div class="stat-item">
         <span class="stat-number" id="stat-total">0</span>
         <span class="stat-label">Tổng profile</span>
@@ -56,60 +101,56 @@
   <div class="toolbar">
     <div class="toolbar-actions">
       <button class="btn btn-primary" id="btn-scan">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        Quét lại profile
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        Quét lại
       </button>
       <button class="btn btn-success" id="btn-create-all">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         Tạo tất cả shortcut
       </button>
-      <button class="btn btn-secondary" id="btn-open-desktop">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <button class="btn btn-purple" id="btn-new-profile">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Thêm tài khoản Chrome
+      </button>
+      <button class="btn btn-secondary" id="btn-manage-groups">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+        Quản lý nhóm
+      </button>
+      <button class="btn btn-outline" id="btn-open-desktop">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         Mở Desktop
       </button>
     </div>
     <div class="toolbar-filters">
       <div class="search-box">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         <input type="text" id="search-input" placeholder="Tìm kiếm profile..." />
       </div>
       <select id="group-filter" class="select-filter">
         <option value="">Tất cả nhóm</option>
-        <option value="Seeding">Seeding</option>
-        <option value="Ads">Ads</option>
-        <option value="BM">BM</option>
-        <option value="Khách hàng">Khách hàng</option>
-        <option value="Cá nhân">Cá nhân</option>
-        <option value="Khác">Khác</option>
       </select>
     </div>
   </div>
 
-  <!-- Main content -->
+  <!-- Main -->
   <main class="main" id="main-content">
-    <!-- Empty state -->
     <div class="empty-state" id="empty-state">
       <div class="empty-icon">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       </div>
       <h3 id="empty-title">Chưa có profile nào</h3>
-      <p id="empty-desc">Bấm <strong>"Quét lại profile"</strong> để tìm các tài khoản Chrome trên máy</p>
+      <p id="empty-desc">Bấm <strong>"Quét lại"</strong> để tìm các tài khoản Chrome trên máy</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-        <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">
-          Quét profile Chrome
-        </button>
+        <button class="btn btn-primary" onclick="document.getElementById('btn-scan').click()">Quét profile Chrome</button>
         <button class="btn btn-secondary" id="btn-pick-folder">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
           Chọn thư mục Chrome thủ công
         </button>
       </div>
-      <div id="current-path-info" style="display:none;margin-top:12px;padding:10px 16px;background:#f1f5f9;border-radius:8px;font-size:12px;color:#64748b;max-width:500px;word-break:break-all"></div>
     </div>
 
-    <!-- Profile list -->
     <div class="profile-grid" id="profile-grid" style="display:none"></div>
 
-    <!-- Loading -->
     <div class="loading" id="loading" style="display:none">
       <div class="spinner"></div>
       <p>Đang quét profile Chrome...</p>

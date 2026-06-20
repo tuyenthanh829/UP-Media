@@ -2,19 +2,16 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// Tất cả đường dẫn có thể có của Chrome User Data
 function getPossibleUserDataPaths() {
   const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
   const home = os.homedir();
   const drives = ['C', 'D', 'E', 'F'];
 
   const paths = [
-    // Mặc định
     path.join(localAppData, 'Google', 'Chrome', 'User Data'),
     path.join(home, 'AppData', 'Local', 'Google', 'Chrome', 'User Data'),
   ];
 
-  // Thêm các ổ D, E, F với các tên thư mục phổ biến
   for (const drive of drives) {
     paths.push(`${drive}:\\No Delete\\Google\\Chrome\\User Data`);
     paths.push(`${drive}:\\Google\\Chrome\\User Data`);
@@ -26,9 +23,7 @@ function getPossibleUserDataPaths() {
 }
 
 function findUserDataPath(customPath) {
-  // Nếu người dùng đã chỉ định custom path, ưu tiên dùng
   if (customPath && fs.existsSync(customPath)) return customPath;
-
   for (const p of getPossibleUserDataPaths()) {
     if (fs.existsSync(p)) return p;
   }
@@ -38,21 +33,46 @@ function findUserDataPath(customPath) {
 function readPreferences(profilePath) {
   try {
     const prefsPath = path.join(profilePath, 'Preferences');
-    if (!fs.existsSync(prefsPath)) return null;
+    if (!fs.existsSync(prefsPath)) return {};
     const raw = fs.readFileSync(prefsPath, 'utf8');
     const prefs = JSON.parse(raw);
-    return prefs?.profile?.name || null;
+    return {
+      name: prefs?.profile?.name || null,
+      avatarIndex: prefs?.profile?.avatar_index ?? null,
+      gaiaName: prefs?.profile?.gaia_name || null,
+      email: prefs?.profile?.user_name || null
+    };
   } catch {
-    return null;
+    return {};
   }
+}
+
+// Tìm ảnh avatar thực của profile (Google Profile Picture)
+function findProfileAvatar(profilePath) {
+  const candidates = [
+    path.join(profilePath, 'Google Profile Picture.png'),
+    path.join(profilePath, 'Google Profile.png'),
+    path.join(profilePath, 'Avatar.png')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+function getNextProfileDirectory(userDataPath) {
+  const entries = fs.readdirSync(userDataPath);
+  let max = 0;
+  for (const e of entries) {
+    const m = e.match(/^Profile (\d+)$/);
+    if (m) max = Math.max(max, parseInt(m[1]));
+  }
+  return `Profile ${max + 1}`;
 }
 
 function scanProfiles(customUserDataPath) {
   const userDataPath = findUserDataPath(customUserDataPath);
-
-  if (!userDataPath) {
-    throw new Error('NOT_FOUND_USER_DATA');
-  }
+  if (!userDataPath) throw new Error('NOT_FOUND_USER_DATA');
 
   const entries = fs.readdirSync(userDataPath);
   const profiles = [];
@@ -64,21 +84,23 @@ function scanProfiles(customUserDataPath) {
 
     const profilePath = path.join(userDataPath, entry);
     try {
-      const stat = fs.statSync(profilePath);
-      if (!stat.isDirectory()) continue;
-    } catch {
-      continue;
-    }
+      if (!fs.statSync(profilePath).isDirectory()) continue;
+    } catch { continue; }
 
     const prefsPath = path.join(profilePath, 'Preferences');
     if (!fs.existsSync(prefsPath)) continue;
 
-    const chromeProfileName = readPreferences(profilePath) || entry;
+    const prefs = readPreferences(profilePath);
+    const avatarPath = findProfileAvatar(profilePath);
 
     profiles.push({
       profileDirectory: entry,
       profilePath,
-      chromeProfileName,
+      chromeProfileName: prefs.name || entry,
+      gaiaName: prefs.gaiaName || null,
+      email: prefs.email || null,
+      avatarIndex: prefs.avatarIndex,
+      avatarPath: avatarPath || null,
       shortcutName: '',
       group: 'Khác',
       hasShortcut: false
@@ -96,4 +118,4 @@ function scanProfiles(customUserDataPath) {
   return { profiles, userDataPath };
 }
 
-module.exports = { scanProfiles, findUserDataPath, getPossibleUserDataPaths };
+module.exports = { scanProfiles, findUserDataPath, getPossibleUserDataPaths, getNextProfileDirectory };
