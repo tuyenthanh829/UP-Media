@@ -1,7 +1,7 @@
 {
-  "name": "chrome-shortcut-manager",
-  "version": "1.0.0",
-  "description": "Quản lý Chrome profile và tạo shortcut Desktop cho Windows",
+  "name": "chrome-manager-upmedia",
+  "version": "1.8.0",
+  "description": "Chrome Manager by UP Media — Quản lý Chrome profile và tạo shortcut Desktop cho Windows",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -16,8 +16,8 @@
     "electron-builder": "^24.0.0"
   },
   "build": {
-    "appId": "com.upmedia.chromeshortcutmanager",
-    "productName": "Chrome Shortcut Manager",
+    "appId": "com.upmedia.chromemanager",
+    "productName": "Chrome Manager by UP Media",
     "directories": {
       "output": "dist"
     },

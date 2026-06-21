@@ -44,6 +44,16 @@ function updateStats(profiles) {
   document.getElementById('stat-unnamed').textContent = profiles.filter(p=>{
     const n=p.shortcutName||''; return !n||n===p.profileDirectory||n===p.chromeProfileName;
   }).length;
+  document.getElementById('stat-gmail').textContent = profiles.filter(p=>(p.googleAccounts||[]).length>0).length;
+  // Social count updates via updateSocialStats() after background scan
+}
+
+function updateSocialStats() {
+  const cnt = allProfiles.filter(p=>{
+    const sc = profileSocialCache[p.profileDirectory];
+    return sc && Object.values(sc).some(s=>s.loggedIn);
+  }).length;
+  document.getElementById('stat-social').textContent = cnt;
 }
 
 function fmtBytes(b) {
@@ -222,6 +232,7 @@ async function backgroundScanSocial() {
     const results = await window.app.getSocialStatusBatch(batch, socialSitesConfig);
     Object.assign(profileSocialCache, results);
     updateSocialBadgesAll();
+    updateSocialStats();
     renderSidebar();
   } catch { /* ignore */ }
 }
@@ -390,7 +401,14 @@ function buildGroupTags(profile, card) {
     menu.appendChild(item);
   });
 
-  addBtn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
+  addBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const willOpen = !menu.classList.contains('open');
+    menu.classList.toggle('open');
+    // Bump card z-index so dropdown appears above sibling cards
+    const parentCard = card;
+    if (willOpen) parentCard.classList.add('dropdown-open');
+  });
   wrap.appendChild(addBtn); wrap.appendChild(menu);
   row.appendChild(wrap);
 }
@@ -743,16 +761,19 @@ async function runCookieDiagnostic() {
 
     if (!cookies.length) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'color:var(--muted);padding-left:8px';
+      empty.style.cssText = 'color:var(--muted);padding-left:8px;font-size:11px';
       empty.textContent = 'Không có cookie nào cho domain này';
       block.appendChild(empty);
     } else {
       const table = document.createElement('div');
-      table.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;padding-left:8px';
+      table.className = 'diag-chips';
       cookies.forEach(c => {
         const isTarget = cookieNames.includes(c.name);
         const chip = document.createElement('span');
-        chip.style.cssText = `display:inline-block;padding:1px 6px;border-radius:10px;font-size:11px;cursor:default;${isTarget ? 'background:var(--success);color:#fff;font-weight:600' : 'background:var(--bg);border:1px solid var(--border);color:var(--muted)'}`;
+        chip.className = 'diag-chip';
+        chip.style.cssText = isTarget
+          ? 'background:var(--success);color:#fff;font-weight:600'
+          : 'background:var(--bg);border:1px solid var(--border);color:var(--muted)';
         chip.title = `host: ${c.host}`;
         chip.textContent = c.name;
         table.appendChild(chip);
@@ -1219,6 +1240,7 @@ function showState(s) {
 // ── Close dropdowns ───────────────────────────────────────
 document.addEventListener('click', () => {
   document.querySelectorAll('.group-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+  document.querySelectorAll('.profile-card.dropdown-open').forEach(c => c.classList.remove('dropdown-open'));
 });
 
 // ── Event bindings ────────────────────────────────────────

@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <title>Chrome Shortcut Manager</title>
+  <title>Chrome Manager by UP Media</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -174,19 +174,16 @@
 <header class="header">
   <div class="header-left">
     <div class="app-icon">
-      <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="22" fill="#4285F4"/>
-        <circle cx="24" cy="24" r="10" fill="white"/>
-        <path d="M24 14 A10 10 0 0 1 32.66 19 L24 19 Z" fill="#EA4335"/>
-        <path d="M24 14 A10 10 0 0 0 15.34 19 L10.14 10 A22 22 0 0 1 37.86 10 Z" fill="#EA4335"/>
-        <path d="M15.34 19 A10 10 0 0 0 15.34 29 L7 33.66 A22 22 0 0 1 2 24 A22 22 0 0 1 10.14 10 Z" fill="#FBBC05"/>
-        <path d="M32.66 29 A10 10 0 0 0 32.66 19 L41 14.34 A22 22 0 0 1 46 24 A22 22 0 0 1 37.86 38 Z" fill="#34A853"/>
-        <path d="M24 34 A10 10 0 0 1 15.34 29 L7 33.66 A22 22 0 0 0 41 33.66 L32.66 29 A10 10 0 0 1 24 34 Z" fill="#34A853"/>
+      <!-- UP Media logo mark -->
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" rx="9" fill="#FFE66D"/>
+        <text x="20" y="16" text-anchor="middle" dominant-baseline="middle" font-family="'Segoe UI',Arial,sans-serif" font-size="13" font-weight="900" fill="#0E5A2A">UP</text>
+        <text x="20" y="30" text-anchor="middle" dominant-baseline="middle" font-family="'Segoe UI',Arial,sans-serif" font-size="8" font-weight="700" letter-spacing="1" fill="#0E5A2A">MEDIA</text>
       </svg>
     </div>
     <div>
-      <h1 class="app-title">Chrome Shortcut Manager</h1>
-      <p class="app-subtitle">Quản lý user Chrome và tạo shortcut ra Desktop</p>
+      <h1 class="app-title">Chrome Manager <span class="brand">by UP Media</span></h1>
+      <p class="app-subtitle">Giải pháp tổng thể về truyền thông thương hiệu</p>
     </div>
   </div>
   <div class="header-stats">
@@ -197,6 +194,10 @@
     <div class="stat-item"><span class="stat-number no-shortcut" id="stat-no-shortcut">0</span><span class="stat-label">Chưa có</span></div>
     <div class="stat-divider"></div>
     <div class="stat-item"><span class="stat-number unnamed" id="stat-unnamed">0</span><span class="stat-label">Chưa đặt tên</span></div>
+    <div class="stat-divider"></div>
+    <div class="stat-item"><span class="stat-number gmail" id="stat-gmail">0</span><span class="stat-label">Gmail</span></div>
+    <div class="stat-divider"></div>
+    <div class="stat-item"><span class="stat-number social" id="stat-social">0</span><span class="stat-label">Social</span></div>
   </div>
 </header>
 
@@ -249,7 +250,7 @@
 
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="sidebar-groups-section">
       <div class="sidebar-title">Lọc nhóm</div>
       <div id="sidebar-groups"></div>
     </div>
