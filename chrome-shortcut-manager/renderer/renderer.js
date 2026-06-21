@@ -1476,26 +1476,6 @@ document.getElementById('modal-social').addEventListener('click', e => { if(e.ta
 document.getElementById('btn-manage-social-sites').addEventListener('click', () => { closeSocialModal(); openManageSitesModal(); });
 document.getElementById('btn-diag-cookies').addEventListener('click', runCookieDiagnostic);
 
-document.getElementById('btn-open-debug-chrome').addEventListener('click', async () => {
-  if (!_socialModalProfile) return;
-  const { profile } = _socialModalProfile;
-  const btn = document.getElementById('btn-open-debug-chrome');
-  btn.disabled = true;
-  btn.textContent = '⏳ Đang mở...';
-  const result = await window.app.killAndOpenDebug(profile.profileDirectory);
-  btn.disabled = false;
-  btn.textContent = '🐛 Mở Chrome Debug';
-  if (result.success) {
-    // CDP is now ready — run diagnostic immediately
-    await runCookieDiagnostic();
-  } else {
-    const panel = document.getElementById('social-diag-panel');
-    const content = document.getElementById('social-diag-content');
-    panel.style.display = '';
-    content.innerHTML = `<div style="color:#f87171;font-size:12px;padding:8px">❌ ${result.error}</div>`;
-  }
-});
-
 document.getElementById('modal-manage-sites-close').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
 document.getElementById('btn-cancel-sites').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
 document.getElementById('btn-save-sites').addEventListener('click', saveSocialSites);
