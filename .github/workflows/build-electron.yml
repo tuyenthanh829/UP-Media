@@ -31,9 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: chrome-shortcut-manager/package-lock.json
+          node-version: '24'
 
       # ── 3. Tự tăng patch version (1.8.0 → 1.8.1) ────────────
       - name: Bump patch version
@@ -61,7 +59,7 @@ jobs:
 
       # ── 4. Build ──────────────────────────────────────────────
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Windows .exe
         run: npm run build:win
