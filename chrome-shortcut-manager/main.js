@@ -324,6 +324,37 @@ ipcMain.handle('debug-social-status', async (_, profilePath, sites) => {
   return social.debugSocialStatus(profilePath, sites);
 });
 
+// Kill all Chrome, open a specific profile fresh with debug port, wait for port to open.
+// Used by the "Mở Chrome Debug" button in social diagnostic panel.
+ipcMain.handle('kill-and-open-debug', async (_, profileDirectory) => {
+  const { isPortOpen } = require('./src/chromeCdp');
+  const config = configStore.getConfig();
+  const userDataPath = config.settings?.chromeUserDataPath || null;
+
+  // Kill Chrome
+  await new Promise(resolve => {
+    const { exec } = require('child_process');
+    exec('taskkill /F /IM chrome.exe /T', () => resolve());
+  });
+
+  // Wait for all Chrome processes to die
+  await new Promise(r => setTimeout(r, 1500));
+
+  // Open profile with debug port
+  try {
+    shortcuts.openProfile(profileDirectory, userDataPath);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+
+  // Poll for port 9223 to open (up to 12s)
+  for (let i = 0; i < 24; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    if (await isPortOpen(9223)) return { success: true, port: 9223 };
+  }
+  return { success: false, error: 'CDP port 9223 không mở sau 12 giây. Chrome 130+ có thể chặn remote debugging.' };
+});
+
 ipcMain.handle('get-social-status-batch', async (_, profilePaths, sites) => {
   const results = {};
   for (const { dir, profilePath } of profilePaths) {

@@ -783,13 +783,20 @@ async function runCookieDiagnostic() {
       const cd = dbg.chromeDiag;
       if (cd.portsOpen && cd.portsOpen.length) lines.push(`<br>Open debug ports: <b style="color:#4ade80">${cd.portsOpen.join(', ')}</b>`);
       else lines.push(`<br>Ports 9220-9230: <b style="color:#f87171">none open</b>`);
-      if (cd.processes && cd.processes.length) lines.push(`Chrome flags: <b style="color:#cbd5e1">${cd.processes.map(eh).join(' ')}</b>`);
-    }
-    if (rd.error) {
-      lines.push(`⚠ Error: ${eh(rd.error)}`);
+      // Show full Chrome flags (with spaces preserved — split on ' --' boundaries)
+      if (cd.processes && cd.processes.length && cd.processes[0] !== '(no chrome.exe running)') {
+        lines.push(`Chrome flags: <b style="color:#cbd5e1">${cd.processes.map(eh).join(' ')}</b>`);
+      } else if (cd.rawCmdLine) {
+        lines.push(`Chrome cmd: <b style="color:#cbd5e1">${eh(cd.rawCmdLine.slice(0, 300))}</b>`);
+      } else {
+        lines.push(`<b style="color:#f87171">Chrome không chạy</b>`);
+      }
     }
     // File-level info
-    lines.push(`File size: <b style="color:#e2e8f0">${rd.fileSize ?? '?'} bytes</b>`);
+    lines.push(`<br>stat size: <b style="color:#e2e8f0">${rd.statSize ?? '?'} bytes</b>`);
+    lines.push(`read size: <b style="color:${(rd.fileSize||0)>0 ? '#4ade80' : '#f87171'}">${rd.fileSize ?? '?'} bytes</b>`);
+    if (rd.psDiag) lines.push(`PS diag: <b style="color:#fbbf24">${eh(rd.psDiag)}</b>`);
+    if (rd.error && !rd.psDiag) lines.push(`⚠ Error: ${eh(rd.error)}`);
     lines.push(`SQLite magic: <b style="color:${rd.sqliteMagic ? '#4ade80' : '#f87171'}">${rd.sqliteMagic ? 'OK' : 'INVALID - ' + eh((rd.magic||'').slice(0,12))}</b>`);
     if (rd.networkFiles && rd.networkFiles.length) {
       lines.push(`Network/ files: <b style="color:#cbd5e1">${rd.networkFiles.map(eh).join(', ')}</b>`);
@@ -1412,6 +1419,26 @@ document.getElementById('btn-close-social').addEventListener('click', closeSocia
 document.getElementById('modal-social').addEventListener('click', e => { if(e.target===e.currentTarget) closeSocialModal(); });
 document.getElementById('btn-manage-social-sites').addEventListener('click', () => { closeSocialModal(); openManageSitesModal(); });
 document.getElementById('btn-diag-cookies').addEventListener('click', runCookieDiagnostic);
+
+document.getElementById('btn-open-debug-chrome').addEventListener('click', async () => {
+  if (!_socialModalProfile) return;
+  const { profile } = _socialModalProfile;
+  const btn = document.getElementById('btn-open-debug-chrome');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang mở...';
+  const result = await window.app.killAndOpenDebug(profile.profileDirectory);
+  btn.disabled = false;
+  btn.textContent = '🐛 Mở Chrome Debug';
+  if (result.success) {
+    // CDP is now ready — run diagnostic immediately
+    await runCookieDiagnostic();
+  } else {
+    const panel = document.getElementById('social-diag-panel');
+    const content = document.getElementById('social-diag-content');
+    panel.style.display = '';
+    content.innerHTML = `<div style="color:#f87171;font-size:12px;padding:8px">❌ ${result.error}</div>`;
+  }
+});
 
 document.getElementById('modal-manage-sites-close').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
 document.getElementById('btn-cancel-sites').addEventListener('click', () => document.getElementById('modal-manage-sites').classList.add('hidden'));
