@@ -147,12 +147,35 @@ function mergeWalIntoDb(dbBuf, walBuf) {
  * FILE_SHARE_READ|WRITE|DELETE flags and can copy the file anyway.
  */
 function readFileBypassed(filePath) {
-  // Try direct read first (fast path — works when Chrome is closed)
-  try { return fs.readFileSync(filePath); } catch (e) {
+  const { spawnSync } = require('child_process');
+
+  // ── 1. Direct read (fast path, works when Chrome is closed) ──
+  try {
+    const buf = fs.readFileSync(filePath);
+    if (buf.length > 0) return buf;
+    // 0-byte result may be a transient lock/journal-write race — fall through to retries
+  } catch (e) {
     if (e.code !== 'EBUSY' && e.code !== 'EPERM' && e.code !== 'EACCES') throw e;
   }
-  // Fallback: .NET FileStream with FileShare.ReadWrite|Delete bypasses SQLite lock
-  const { spawnSync } = require('child_process');
+
+  // ── 2. robocopy /B (Backup mode — bypasses share-violation differently from FileStream) ──
+  const srcDir = path.dirname(filePath);
+  const srcFile = path.basename(filePath);
+  const dstDir = path.join(os.tmpdir(), `upm_rb_${Date.now()}`);
+  try {
+    fs.mkdirSync(dstDir, { recursive: true });
+    // robocopy exit code 1 = 1 file copied (success); 0 = nothing to do; >=8 = error
+    const rb = spawnSync('robocopy', [srcDir, dstDir, srcFile, '/B', '/R:0', '/W:0', '/NP', '/NJH', '/NJS'], { timeout: 8000 });
+    const rbDst = path.join(dstDir, srcFile);
+    if (fs.existsSync(rbDst)) {
+      const buf = fs.readFileSync(rbDst);
+      if (buf.length > 0) return buf;
+    }
+  } catch { /* fall through */ } finally {
+    try { fs.rmSync(dstDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+  }
+
+  // ── 3. .NET FileStream with FileShare.ReadWrite|Delete ──
   const tmp = path.join(os.tmpdir(), `upm_cookies_${Date.now()}.db`);
   const psScript = `
 $src='${filePath.replace(/'/g, "''")}';
@@ -164,14 +187,21 @@ $fs.Close();$out.Close();
 Write-Output 'ok'
 `.trim();
   try {
-    const r = spawnSync('powershell', [
-      '-NoProfile', '-NonInteractive', '-Command', psScript,
-    ], { timeout: 8000 });
+    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 8000 });
     const stdout = (r.stdout || '').toString().trim();
-    if (r.status !== 0 || stdout !== 'ok') {
-      throw new Error('PowerShell copy failed: ' + (r.stderr || r.stdout || ''));
+    if (r.status !== 0 || stdout !== 'ok') throw new Error('PowerShell copy failed: ' + (r.stderr || r.stdout || ''));
+    const buf = fs.readFileSync(tmp);
+    if (buf.length > 0) return buf;
+    // Still 0 bytes — retry a few times (Chrome may be mid-journal-write)
+    for (let i = 0; i < 4; i++) {
+      spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 8000 });
+      const retryBuf = fs.readFileSync(tmp);
+      if (retryBuf.length > 0) return retryBuf;
+      // Wait 250ms before next retry
+      const until = Date.now() + 250;
+      while (Date.now() < until) { /* spin */ }
     }
-    return fs.readFileSync(tmp);
+    return buf; // return whatever we have (may be 0-byte)
   } finally {
     try { fs.unlinkSync(tmp); } catch { /* cleanup best-effort */ }
   }
