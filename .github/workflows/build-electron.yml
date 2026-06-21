@@ -3,9 +3,6 @@ name: Build Chrome Manager
 on:
   push:
     branches: [main]
-    paths:
-      - 'chrome-shortcut-manager/**'
-      - '!chrome-shortcut-manager/package.json'  # tránh loop khi bump version
   workflow_dispatch:
 
 permissions:
