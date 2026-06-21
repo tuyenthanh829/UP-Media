@@ -45,8 +45,11 @@ const DEFAULT_SOCIAL_SITES = [
   {
     id: 'threads',  name: 'Threads',
     domain: 'threads.net',
+    // Threads is built on Instagram auth — sessionid/ds_user_id may be stored under
+    // instagram.com (shared Meta session) rather than threads.net itself.
+    domains: ['threads.net', 'instagram.com'],
     cookieName: 'sessionid',
-    cookieNames: ['sessionid'],
+    cookieNames: ['sessionid', 'ds_user_id'],
   },
   {
     id: 'linkedin', name: 'LinkedIn',
