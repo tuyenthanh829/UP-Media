@@ -454,6 +454,31 @@ async function debugSocialStatus(profilePath, sites) {
   const userDataPath = path.dirname(profilePath);
   const nowUs = nowChromeTime();
 
+  // Detect file lock early — Chrome running with FILE_SHARE_NONE
+  const cookieFileForLockCheck = [
+    path.join(profilePath, 'Network', 'Cookies'),
+    path.join(profilePath, 'Cookies'),
+  ].find(p => fs.existsSync(p));
+
+  if (cookieFileForLockCheck) {
+    try {
+      const fd = fs.openSync(cookieFileForLockCheck, 'r');
+      fs.closeSync(fd);
+    } catch (e) {
+      if (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') {
+        return {
+          _chromeLocked: true,
+          cookieFile: cookieFileForLockCheck,
+          cdpPort: null, cdpAvailable: false,
+          dpapiWorking: false,
+          chromeDiag: { processes: ['(Chrome đang chạy — file bị khóa)'], portsOpen: [], rawCmdLine: '' },
+          rawDiag: { statSize: fs.statSync(cookieFileForLockCheck).size, fileSize: 0, error: 'Chrome đang chạy: FILE_SHARE_NONE — không đọc được' },
+          sites: {},
+        };
+      }
+    }
+  }
+
   // ── Try CDP first ──────────────────────────────────────────
   const cdpPortFile = path.join(userDataPath, 'DevToolsActivePort');
   const cdpPortFileExists = fs.existsSync(cdpPortFile);
