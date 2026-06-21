@@ -393,6 +393,33 @@ async function debugSocialStatus(profilePath, sites) {
     catch (e) { cdpError = String(e.message || e); }
   }
 
+  // ── Chrome process diagnostic ──────────────────────────────
+  // Check what flags Chrome is actually running with + what ports it listens on
+  let chromeDiag = { processes: [], portsOpen: [] };
+  try {
+    const { spawnSync } = require('child_process');
+    // Get Chrome process command lines
+    const r = spawnSync('wmic', ['process', 'where', "name='chrome.exe'", 'get', 'CommandLine', '/format:list'], { timeout: 5000, encoding: 'utf8' });
+    if (r.stdout) {
+      const lines = r.stdout.split(/\r?\n/).filter(l => l.startsWith('CommandLine='));
+      // Only show first chrome process's flags (they share the same flags)
+      const first = lines[0] || '';
+      const flags = (first.match(/--[a-z-]+=?[^\s]*/g) || []).filter(f =>
+        f.includes('debug') || f.includes('profile') || f.includes('remote') || f.includes('user-data')
+      );
+      chromeDiag.processes = flags.length ? flags : (lines.length ? ['(no debug flags found)'] : ['(no chrome.exe running)']);
+    }
+  } catch { chromeDiag.processes = ['(wmic check failed)']; }
+
+  // Scan ports 9220-9230 to find any debug server
+  const { isPortOpen } = chromeCdp;
+  if (isPortOpen) {
+    const portChecks = await Promise.all(
+      Array.from({ length: 11 }, (_, i) => 9220 + i).map(async p => (await isPortOpen(p)) ? p : null)
+    );
+    chromeDiag.portsOpen = portChecks.filter(Boolean);
+  }
+
   const cookieFile = [
     path.join(profilePath, 'Network', 'Cookies'),
     path.join(profilePath, 'Cookies'),
@@ -579,6 +606,7 @@ async function debugSocialStatus(profilePath, sites) {
     cdpAvailable: !!cdpCookies,
     cdpError,
     cdpCookieCount: cdpCookies ? cdpCookies.length : null,
+    chromeDiag,
     rawDiag: rawDiag || {},
     sites: mergedSites,
   };

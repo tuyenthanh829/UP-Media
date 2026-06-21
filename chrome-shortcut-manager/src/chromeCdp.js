@@ -216,4 +216,4 @@ async function getSocialStatusViaCdp(userDataPath, sites) {
   return result;
 }
 
-module.exports = { getCdpPort, getAllCookies, getSocialStatusViaCdp };
+module.exports = { getCdpPort, getAllCookies, getSocialStatusViaCdp, isPortOpen };
