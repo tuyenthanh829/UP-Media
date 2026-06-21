@@ -346,26 +346,42 @@ async function debugSocialStatus(profilePath, sites) {
   try { masterKey = cookieDecrypt.getChromeMasterKey(userDataPath); }
   catch (e) { dpapiError = String(e.message || e); }
 
-  const rawDiag = await withDb(profilePath, db => {
+  // Read raw file bytes for magic-byte check BEFORE sql.js (sql.js silently creates empty DB on bad input)
+  let rawDiag = { fileSize: 0, magic: '', sqliteMagic: false, networkFiles: [], error: null };
+  if (cookieFile) {
     try {
-      // List all tables
+      const rawBuf = fs.readFileSync(cookieFile);
+      rawDiag.fileSize = rawBuf.length;
+      rawDiag.magic = rawBuf.slice(0, 16).toString('hex');
+      // SQLite magic: "SQLite format 3\0" = 53514c697465 20666f726d617420330000
+      rawDiag.sqliteMagic = rawBuf.slice(0, 6).toString('ascii') === 'SQLite';
+
+      // List all files in Network folder for context
+      const networkDir = path.dirname(cookieFile);
+      try {
+        rawDiag.networkFiles = fs.readdirSync(networkDir).slice(0, 20);
+      } catch { rawDiag.networkFiles = []; }
+    } catch (e) {
+      rawDiag.error = String(e.message || e);
+    }
+  }
+
+  const rawDbDiag = await withDb(profilePath, db => {
+    try {
       const tablesRes = db.exec(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`);
       const tables = tablesRes.length ? tablesRes[0].values.map(r => r[0]) : [];
 
-      // Try to count cookies and sample host_keys from known table names
       let cookieCount = null;
       let sampleHosts = [];
       let cookieTable = null;
       for (const t of tables) {
         try {
-          const cnt = db.exec(`SELECT COUNT(*) FROM "${t}"`);
-          const n = cnt.length ? cnt[0].values[0][0] : 0;
-          // Heuristic: the cookie table has many rows and a host_key column
           const cols = db.exec(`PRAGMA table_info("${t}")`);
           const colNames = cols.length ? cols[0].values.map(r => r[1]) : [];
           if (colNames.includes('host_key')) {
             cookieTable = t;
-            cookieCount = n;
+            const cnt = db.exec(`SELECT COUNT(*) FROM "${t}"`);
+            cookieCount = cnt.length ? cnt[0].values[0][0] : 0;
             const hosts = db.exec(`SELECT DISTINCT host_key FROM "${t}" LIMIT 10`);
             sampleHosts = hosts.length ? hosts[0].values.map(r => r[0]) : [];
             break;
@@ -377,6 +393,8 @@ async function debugSocialStatus(profilePath, sites) {
       return { error: String(e.message || e) };
     }
   });
+
+  Object.assign(rawDiag, rawDbDiag || {});
 
   const siteDiag = await withDb(profilePath, db => {
     const out = {};
