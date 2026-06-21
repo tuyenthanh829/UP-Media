@@ -149,23 +149,37 @@ function mergeWalIntoDb(dbBuf, walBuf) {
 function readFileBypassed(filePath) {
   const { spawnSync } = require('child_process');
 
-  // ── 1. Direct read (fast path, works when Chrome is closed) ──
+  // ── 1. Direct read with explicit size (fast path) ──
+  // Uses fs.open + fs.read to read exactly statSync.size bytes, avoiding issues
+  // where fs.readFileSync returns 0 because Chrome holds file in a specific mode.
   try {
-    const buf = fs.readFileSync(filePath);
-    if (buf.length > 0) return buf;
-    // 0-byte result may be a transient lock/journal-write race — fall through to retries
+    const statSize = fs.statSync(filePath).size;
+    if (statSize > 0) {
+      const fd = fs.openSync(filePath, 'r');
+      try {
+        const buf = Buffer.alloc(statSize);
+        let totalRead = 0;
+        while (totalRead < statSize) {
+          const n = fs.readSync(fd, buf, totalRead, statSize - totalRead, totalRead);
+          if (n === 0) break;
+          totalRead += n;
+        }
+        if (totalRead > 0) return buf.slice(0, totalRead);
+      } finally {
+        fs.closeSync(fd);
+      }
+    }
   } catch (e) {
     if (e.code !== 'EBUSY' && e.code !== 'EPERM' && e.code !== 'EACCES') throw e;
   }
 
-  // ── 2. robocopy /B (Backup mode — bypasses share-violation differently from FileStream) ──
+  // ── 2. robocopy /B (Backup mode — uses SE_BACKUP_NAME privilege) ──
   const srcDir = path.dirname(filePath);
   const srcFile = path.basename(filePath);
   const dstDir = path.join(os.tmpdir(), `upm_rb_${Date.now()}`);
   try {
     fs.mkdirSync(dstDir, { recursive: true });
-    // robocopy exit code 1 = 1 file copied (success); 0 = nothing to do; >=8 = error
-    const rb = spawnSync('robocopy', [srcDir, dstDir, srcFile, '/B', '/R:0', '/W:0', '/NP', '/NJH', '/NJS'], { timeout: 8000 });
+    spawnSync('robocopy', [srcDir, dstDir, srcFile, '/B', '/R:0', '/W:0', '/NP', '/NJH', '/NJS'], { timeout: 8000 });
     const rbDst = path.join(dstDir, srcFile);
     if (fs.existsSync(rbDst)) {
       const buf = fs.readFileSync(rbDst);
@@ -175,33 +189,39 @@ function readFileBypassed(filePath) {
     try { fs.rmSync(dstDir, { recursive: true, force: true }); } catch { /* cleanup */ }
   }
 
-  // ── 3. .NET FileStream with FileShare.ReadWrite|Delete ──
+  // ── 3. .NET FileStream — reads $fs.Length bytes explicitly ──
+  // Explicitly reads file.Length bytes rather than CopyTo (which reads until EOF
+  // and may return 0 if Chrome's handle reports 0 at the stream level).
   const tmp = path.join(os.tmpdir(), `upm_cookies_${Date.now()}.db`);
   const psScript = `
 $src='${filePath.replace(/'/g, "''")}';
 $dst='${tmp.replace(/'/g, "''")}';
-$fs=[System.IO.File]::Open($src,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete);
-$out=[System.IO.File]::Create($dst);
-$fs.CopyTo($out);
-$fs.Close();$out.Close();
-Write-Output 'ok'
+$share=[System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete;
+$fs=[System.IO.File]::Open($src,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,$share);
+$len=$fs.Length;
+if($len -gt 0){
+  $bytes=New-Object byte[] $len;
+  $fs.Seek(0,[System.IO.SeekOrigin]::Begin)|Out-Null;
+  $n=$fs.Read($bytes,0,$len);
+  $fs.Close();
+  if($n -gt 0){
+    $out=[System.IO.File]::Create($dst);
+    $out.Write($bytes,0,$n);
+    $out.Close();
+    Write-Output "ok:$n";
+  } else { Write-Output "zero_read:$len"; }
+} else { $fs.Close(); Write-Output "zero_len"; }
 `.trim();
   try {
-    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 8000 });
+    const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 10000 });
     const stdout = (r.stdout || '').toString().trim();
-    if (r.status !== 0 || stdout !== 'ok') throw new Error('PowerShell copy failed: ' + (r.stderr || r.stdout || ''));
-    const buf = fs.readFileSync(tmp);
-    if (buf.length > 0) return buf;
-    // Still 0 bytes — retry a few times (Chrome may be mid-journal-write)
-    for (let i = 0; i < 4; i++) {
-      spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psScript], { timeout: 8000 });
-      const retryBuf = fs.readFileSync(tmp);
-      if (retryBuf.length > 0) return retryBuf;
-      // Wait 250ms before next retry
-      const until = Date.now() + 250;
-      while (Date.now() < until) { /* spin */ }
+    if (r.status !== 0) throw new Error('PS failed: ' + (r.stderr || r.stdout || ''));
+    if (stdout.startsWith('ok:')) {
+      const buf = fs.readFileSync(tmp);
+      if (buf.length > 0) return buf;
     }
-    return buf; // return whatever we have (may be 0-byte)
+    // Return diagnostic info as error so caller can surface it
+    throw new Error(`PS_DIAG:${stdout || '(no output)'}:stderr=${(r.stderr||'').toString().trim().slice(0,200)}`);
   } finally {
     try { fs.unlinkSync(tmp); } catch { /* cleanup best-effort */ }
   }
@@ -424,20 +444,25 @@ async function debugSocialStatus(profilePath, sites) {
   }
 
   // ── Chrome process diagnostic ──────────────────────────────
-  // Check what flags Chrome is actually running with + what ports it listens on
-  let chromeDiag = { processes: [], portsOpen: [] };
+  let chromeDiag = { processes: [], portsOpen: [], rawCmdLine: '' };
   try {
     const { spawnSync } = require('child_process');
-    // Get Chrome process command lines
     const r = spawnSync('wmic', ['process', 'where', "name='chrome.exe'", 'get', 'CommandLine', '/format:list'], { timeout: 5000, encoding: 'utf8' });
     if (r.stdout) {
       const lines = r.stdout.split(/\r?\n/).filter(l => l.startsWith('CommandLine='));
-      // Only show first chrome process's flags (they share the same flags)
-      const first = lines[0] || '';
-      const flags = (first.match(/--[a-z-]+=?[^\s]*/g) || []).filter(f =>
-        f.includes('debug') || f.includes('profile') || f.includes('remote') || f.includes('user-data')
-      );
-      chromeDiag.processes = flags.length ? flags : (lines.length ? ['(no debug flags found)'] : ['(no chrome.exe running)']);
+      if (lines.length) {
+        // Show the FULL first command line (not regex-truncated) so paths with spaces are visible
+        const rawLine = lines[0].replace(/^CommandLine=/, '').trim();
+        chromeDiag.rawCmdLine = rawLine.slice(0, 400); // limit for display
+        // Extract relevant --flags; keep full value by matching to next -- or end
+        const parts = rawLine.split(/(?=--)/);
+        chromeDiag.processes = parts
+          .map(s => s.trim())
+          .filter(s => s.match(/^--(debug|profile|remote|user-data)/));
+        if (!chromeDiag.processes.length) chromeDiag.processes = ['(no debug flags found)'];
+      } else {
+        chromeDiag.processes = ['(no chrome.exe running)'];
+      }
     }
   } catch { chromeDiag.processes = ['(wmic check failed)']; }
 
@@ -462,8 +487,9 @@ async function debugSocialStatus(profilePath, sites) {
   catch (e) { dpapiError = String(e.message || e); }
 
   // Read raw file bytes for magic-byte check BEFORE sql.js (sql.js silently creates empty DB on bad input)
-  let rawDiag = { fileSize: 0, magic: '', sqliteMagic: false, networkFiles: [], error: null };
+  let rawDiag = { fileSize: 0, magic: '', sqliteMagic: false, networkFiles: [], error: null, psDiag: null, statSize: 0 };
   if (cookieFile) {
+    try { rawDiag.statSize = fs.statSync(cookieFile).size; } catch { /* ignore */ }
     try {
       const rawBuf = readFileBypassed(cookieFile);
       rawDiag.fileSize = rawBuf.length;
@@ -506,6 +532,8 @@ async function debugSocialStatus(profilePath, sites) {
       }
     } catch (e) {
       rawDiag.error = String(e.message || e);
+      // PS_DIAG prefix means readFileBypassed returned diagnostic info — surface it
+      if (rawDiag.error.startsWith('PS_DIAG:')) rawDiag.psDiag = rawDiag.error;
     }
   }
 
