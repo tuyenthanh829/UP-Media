@@ -128,9 +128,10 @@ function isCookieValueValid(rawEncrypted, masterKey) {
     return decrypted !== null && decrypted.length > 0;
   }
 
-  // Fallback without decryption: if the blob starts with v10/v11 it is an active Chrome session
+  // Fallback without decryption: check Chrome encryption prefix
+  // v10/v11 = AES-256-GCM (Chrome 80-126), v20 = App-Bound Encryption (Chrome 127+)
   const prefix = buf.slice(0, 3).toString('ascii');
-  return prefix === 'v10' || prefix === 'v11';
+  return prefix === 'v10' || prefix === 'v11' || prefix === 'v20';
 }
 
 // ── Main detection ────────────────────────────────────────
@@ -250,4 +251,87 @@ async function getCookiesForDomain(profilePath, domain) {
   return rows || [];
 }
 
-module.exports = { getSocialStatus, getCookiesForDomain, DEFAULT_SOCIAL_SITES };
+// ── Deep diagnostic ───────────────────────────────────────
+/**
+ * Returns detailed diagnostic info for each site:
+ * cookieFile, dpapi, per-site: rowCount, rows (name, host, prefix, valueLen, expired)
+ */
+async function debugSocialStatus(profilePath, sites) {
+  const userDataPath = path.dirname(profilePath);
+  const nowUs = nowChromeTime();
+
+  const cookieFile = [
+    path.join(profilePath, 'Network', 'Cookies'),
+    path.join(profilePath, 'Cookies'),
+  ].find(p => fs.existsSync(p)) || null;
+
+  let masterKey = null;
+  let dpapiError = null;
+  const cookieDecrypt = require('./cookieDecrypt');
+  try { masterKey = cookieDecrypt.getChromeMasterKey(userDataPath); }
+  catch (e) { dpapiError = String(e.message || e); }
+
+  const siteDiag = await withDb(profilePath, db => {
+    const out = {};
+    for (const site of sites) {
+      try {
+        const domains     = site.domains     || [site.domain];
+        const cookieNames = (site.cookieNames || [site.cookieName]).filter(Boolean);
+        if (!cookieNames.length) { out[site.id] = { error: 'no cookieNames' }; continue; }
+
+        const domainConds = domains.map(() => 'host_key LIKE ?').join(' OR ');
+        const namePH      = cookieNames.map(() => '?').join(', ');
+        const sql = `
+          SELECT name, host_key, value, encrypted_value, expires_utc
+          FROM cookies
+          WHERE (${domainConds}) AND name IN (${namePH})
+          ORDER BY expires_utc DESC LIMIT 20
+        `;
+        const params = [...domains.map(d => `%${d}%`), ...cookieNames];
+        const stmt = db.prepare(sql);
+        stmt.bind(params);
+        const rows = [];
+        while (stmt.step()) {
+          const row = stmt.getAsObject();
+          const expired = row.expires_utc > 0 && row.expires_utc < nowUs;
+          let prefix = '';
+          let decryptOk = null;
+          if (row.encrypted_value) {
+            const buf = Buffer.isBuffer(row.encrypted_value)
+              ? row.encrypted_value
+              : Buffer.from(row.encrypted_value instanceof Uint8Array
+                  ? row.encrypted_value : Object.values(row.encrypted_value));
+            if (buf.length >= 3) prefix = buf.slice(0, 3).toString('ascii');
+            if (masterKey) {
+              const val = cookieDecrypt.decryptCookieValue(buf, masterKey);
+              decryptOk = val !== null && val.length > 0;
+            }
+          }
+          rows.push({
+            name: row.name,
+            host: row.host_key,
+            hasPlainValue: !!(row.value && String(row.value).length > 0),
+            prefix,
+            decryptOk,
+            expired,
+            expires_utc: row.expires_utc,
+          });
+        }
+        stmt.free();
+        out[site.id] = { rows };
+      } catch (e) {
+        out[site.id] = { error: String(e.message || e) };
+      }
+    }
+    return out;
+  });
+
+  return {
+    cookieFile,
+    dpapiWorking: masterKey !== null,
+    dpapiError,
+    sites: siteDiag || {},
+  };
+}
+
+module.exports = { getSocialStatus, getCookiesForDomain, debugSocialStatus, DEFAULT_SOCIAL_SITES };

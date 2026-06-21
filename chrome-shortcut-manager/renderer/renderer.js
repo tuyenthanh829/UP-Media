@@ -739,57 +739,95 @@ function closeSocialModal() {
 
 async function runCookieDiagnostic() {
   if (!_socialModalProfile) return;
-  const { profilePath } = _socialModalProfile;
+  const { profilePath, profile } = _socialModalProfile;
   const panel = document.getElementById('social-diag-panel');
   const content = document.getElementById('social-diag-content');
   panel.style.display = '';
   content.innerHTML = '<div style="color:var(--muted);font-size:12px">Đang dò cookie...</div>';
 
-  const results = [];
-  for (const site of socialSitesConfig) {
-    const domains = site.domains || [site.domain];
-    const allCookies = [];
-    for (const domain of domains) {
-      const rows = await window.app.getCookiesForDomain(profilePath, domain);
-      rows.forEach(r => { if (!allCookies.find(x=>x.name===r.name&&x.host===r.host)) allCookies.push(r); });
-    }
-    results.push({ site, cookies: allCookies });
-  }
+  // Use the detailed debug API
+  const dbg = await window.app.debugSocialStatus(profilePath, socialSitesConfig);
 
   content.innerHTML = '';
-  results.forEach(({ site, cookies }) => {
+
+  // Header: cookie file + DPAPI status
+  const infoBar = document.createElement('div');
+  infoBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)';
+  const fileOk = !!dbg.cookieFile;
+  const dpOk = dbg.dpapiWorking;
+  infoBar.innerHTML = [
+    `📁 Cookie DB: <b style="color:${fileOk ? 'var(--success)' : 'var(--danger)'}">${fileOk ? 'Tìm thấy' : 'KHÔNG TÌM THẤY'}</b>`,
+    fileOk ? `<span style="color:var(--muted)">(${eh(dbg.cookieFile.split(/[\\/]/).slice(-3).join('/'))})</span>` : '',
+    `&nbsp;|&nbsp; 🔐 DPAPI: <b style="color:${dpOk ? 'var(--success)' : 'var(--warning)'}">${dpOk ? 'Hoạt động ✓' : 'Không hoạt động'}</b>`,
+    dpOk ? '' : `<span style="color:var(--muted);font-size:10px">(dùng fallback prefix)</span>`,
+  ].join(' ');
+  content.appendChild(infoBar);
+
+  // Per-site results
+  socialSitesConfig.forEach(site => {
     const cookieNames = site.cookieNames || [site.cookieName];
+    const siteDbg = dbg.sites[site.id] || {};
+    const rows = siteDbg.rows || [];
+    const hasError = !!siteDbg.error;
+
     const block = document.createElement('div');
     block.style.cssText = 'margin-bottom:10px;font-size:12px';
 
     const header = document.createElement('div');
-    header.style.cssText = 'font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:6px';
-    const found = cookies.some(c => cookieNames.includes(c.name));
-    header.innerHTML = `${socialIcon(site.id)} ${eh(site.name)} <span style="font-weight:400;color:${found ? 'var(--success)' : 'var(--danger)'}">${found ? '✓ Tìm thấy' : '✗ Không thấy'}</span>`;
+    header.style.cssText = 'font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap';
+
+    // Determine detection result
+    const validRow = rows.find(r => {
+      if (r.expired) return false;
+      if (r.hasPlainValue) return true;
+      if (r.decryptOk === true) return true;
+      if (r.decryptOk === null && (r.prefix === 'v10' || r.prefix === 'v11' || r.prefix === 'v20')) return true;
+      return false;
+    });
+    const foundAny = rows.length > 0;
+    const statusColor = validRow ? 'var(--success)' : (foundAny ? 'var(--warning)' : 'var(--danger)');
+    const statusText = validRow ? '✓ Đã đăng nhập' : (foundAny ? '⚠ Có cookie nhưng không hợp lệ' : '✗ Không tìm thấy');
+
+    header.innerHTML = `${socialIcon(site.id)} ${eh(site.name)} <span style="font-weight:400;color:${statusColor}">${statusText}</span>`;
     block.appendChild(header);
 
-    if (!cookies.length) {
+    if (hasError) {
+      const err = document.createElement('div');
+      err.style.cssText = 'color:var(--danger);font-size:11px;padding-left:8px';
+      err.textContent = 'Lỗi: ' + siteDbg.error;
+      block.appendChild(err);
+    } else if (!rows.length) {
       const empty = document.createElement('div');
       empty.style.cssText = 'color:var(--muted);padding-left:8px;font-size:11px';
-      empty.textContent = 'Không có cookie nào cho domain này';
+      empty.textContent = `Không tìm thấy cookie nào (kiểm tra: ${cookieNames.join(', ')})`;
       block.appendChild(empty);
     } else {
       const table = document.createElement('div');
       table.className = 'diag-chips';
-      cookies.forEach(c => {
-        const isTarget = cookieNames.includes(c.name);
+      rows.forEach(r => {
         const chip = document.createElement('span');
         chip.className = 'diag-chip';
-        if (isTarget && !c.expired) {
+
+        // Determine chip color
+        const isValid = !r.expired && (r.hasPlainValue || r.decryptOk === true ||
+          (r.decryptOk === null && (r.prefix === 'v10' || r.prefix === 'v11' || r.prefix === 'v20')));
+
+        if (isValid) {
           chip.style.cssText = 'background:var(--success);color:#fff;font-weight:600';
-        } else if (isTarget && c.expired) {
+        } else if (r.expired) {
           chip.style.cssText = 'background:#fca5a5;color:#7f1d1d;font-weight:600';
-          chip.title = `host: ${c.host} — ĐÃ HẾT HẠN`;
         } else {
           chip.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--muted)';
         }
-        chip.title = chip.title || `host: ${c.host}${c.expired ? ' [hết hạn]' : ''}`;
-        chip.textContent = c.name + (c.expired ? ' ⚠' : '');
+
+        // Detailed tooltip
+        const parts = [`host: ${r.host}`];
+        if (r.prefix) parts.push(`prefix: ${r.prefix}`);
+        if (r.decryptOk === true) parts.push('decrypt: OK');
+        else if (r.decryptOk === false) parts.push('decrypt: FAIL');
+        if (r.expired) parts.push('HẾT HẠN');
+        chip.title = parts.join(' | ');
+        chip.textContent = r.name + (r.prefix ? ` [${r.prefix}]` : '') + (r.expired ? ' ⚠' : '');
         table.appendChild(chip);
       });
       block.appendChild(table);
@@ -798,16 +836,14 @@ async function runCookieDiagnostic() {
     content.appendChild(block);
   });
 
-  // Show whether DPAPI decryption is active
-  const anyDecrypted = results.some(r => r.site && profileSocialCache[_socialModalProfile?.profile?.profileDirectory]?.[r.site.id]?.decrypted);
   const note = document.createElement('div');
   note.style.cssText = 'margin-top:8px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:8px';
   note.innerHTML = [
-    '✅ xanh = tìm thấy + hợp lệ',
-    '🔴 đỏ = tìm thấy nhưng HẾT HẠN',
-    'xám = cookie khác trong domain',
-    '⚠ = hết hạn',
-    '<br>Vào <b>⚙ Quản lý site</b> để sửa tên cookie nếu cần',
+    '✅ xanh = cookie hợp lệ (đăng nhập)',
+    '🟠 cam = có cookie nhưng không xác minh được',
+    '🔴 đỏ = hết hạn',
+    'xám = không phải target cookie',
+    '<br>[v10/v11] = Chrome cũ &nbsp; [v20] = Chrome 127+ &nbsp; <b>Vào ⚙ Quản lý site để sửa tên cookie</b>',
   ].join('&nbsp;&nbsp;•&nbsp;&nbsp;');
   content.appendChild(note);
 }

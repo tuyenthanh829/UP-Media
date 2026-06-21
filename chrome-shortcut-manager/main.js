@@ -314,6 +314,10 @@ ipcMain.handle('rename-group-in-profiles', async (_, oldName, newName) => {
   return configStore.renameGroupInProfiles(oldName, newName);
 });
 
+ipcMain.handle('debug-social-status', async (_, profilePath, sites) => {
+  return social.debugSocialStatus(profilePath, sites);
+});
+
 ipcMain.handle('get-social-status-batch', async (_, profilePaths, sites) => {
   const results = {};
   for (const { dir, profilePath } of profilePaths) {
