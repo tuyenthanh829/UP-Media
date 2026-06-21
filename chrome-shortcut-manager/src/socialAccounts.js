@@ -139,6 +139,32 @@ function mergeWalIntoDb(dbBuf, walBuf) {
   return result;
 }
 
+// ── Copy locked file via PowerShell (Windows) ────────────
+/**
+ * On Windows, Chrome holds an exclusive SQLite lock on Cookies while running.
+ * Node's fs.readFileSync fails with EBUSY. PowerShell Copy-Item uses
+ * FILE_SHARE_READ|WRITE|DELETE flags and can copy the file anyway.
+ */
+function readFileBypassed(filePath) {
+  // Try direct read first (fast path — works when Chrome is closed)
+  try { return fs.readFileSync(filePath); } catch (e) {
+    if (e.code !== 'EBUSY' && e.code !== 'EPERM' && e.code !== 'EACCES') throw e;
+  }
+  // Fallback: PowerShell copy to temp
+  const { spawnSync } = require('child_process');
+  const tmp = path.join(os.tmpdir(), `upm_cookies_${Date.now()}.db`);
+  try {
+    const r = spawnSync('powershell', [
+      '-NoProfile', '-NonInteractive', '-Command',
+      `Copy-Item -Path '${filePath}' -Destination '${tmp}' -Force`,
+    ], { timeout: 8000 });
+    if (r.status !== 0) throw new Error('PowerShell copy failed: ' + (r.stderr || ''));
+    return fs.readFileSync(tmp);
+  } finally {
+    try { fs.unlinkSync(tmp); } catch { /* cleanup best-effort */ }
+  }
+}
+
 // ── Open cookie DB via temp copy (WAL-aware) ─────────────
 async function withDb(profilePath, fn) {
   const cookieFile = [
@@ -151,12 +177,12 @@ async function withDb(profilePath, fn) {
   const walSrc = cookieFile + '-wal';
 
   try {
-    let dbBuf = fs.readFileSync(cookieFile);
+    let dbBuf = readFileBypassed(cookieFile);
 
     // Merge WAL if Chrome is currently running (WAL mode)
     if (fs.existsSync(walSrc)) {
       try {
-        const walBuf = fs.readFileSync(walSrc);
+        const walBuf = readFileBypassed(walSrc);
         dbBuf = mergeWalIntoDb(dbBuf, walBuf);
       } catch { /* WAL merge failed, use main DB as-is */ }
     }
@@ -350,7 +376,7 @@ async function debugSocialStatus(profilePath, sites) {
   let rawDiag = { fileSize: 0, magic: '', sqliteMagic: false, networkFiles: [], error: null };
   if (cookieFile) {
     try {
-      const rawBuf = fs.readFileSync(cookieFile);
+      const rawBuf = readFileBypassed(cookieFile);
       rawDiag.fileSize = rawBuf.length;
       rawDiag.magic = rawBuf.slice(0, 16).toString('hex');
       // SQLite magic: "SQLite format 3\0" = 53514c697465 20666f726d617420330000
