@@ -765,6 +765,26 @@ async function runCookieDiagnostic() {
   ].join(' ');
   content.appendChild(infoBar);
 
+  // Raw DB diagnostic — show table name + sample hosts to debug schema issues
+  if (dbg.rawDiag) {
+    const rd = dbg.rawDiag;
+    const rawBar = document.createElement('div');
+    rawBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:#1e293b;border-radius:6px;border:1px solid #334155;color:#94a3b8;font-family:monospace';
+    const lines = [];
+    if (rd.error) {
+      lines.push(`⚠ DB error: ${eh(rd.error)}`);
+    } else {
+      lines.push(`Tables: <b style="color:#e2e8f0">${(rd.tables||[]).map(eh).join(', ') || '(none)'}</b>`);
+      if (rd.cookieTable) lines.push(`Cookie table: <b style="color:#4ade80">${eh(rd.cookieTable)}</b> (${rd.cookieCount ?? '?'} rows)`);
+      else lines.push(`<b style="color:#f87171">No table with host_key found!</b>`);
+      if (rd.sampleHosts && rd.sampleHosts.length) {
+        lines.push(`Sample hosts: <b style="color:#e2e8f0">${rd.sampleHosts.slice(0,5).map(eh).join(', ')}</b>`);
+      }
+    }
+    rawBar.innerHTML = lines.join('&nbsp;&nbsp;|&nbsp;&nbsp;');
+    content.appendChild(rawBar);
+  }
+
   // Per-site results
   socialSitesConfig.forEach(site => {
     const cookieNames = site.cookieNames || [site.cookieName];

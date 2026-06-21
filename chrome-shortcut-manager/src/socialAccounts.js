@@ -225,6 +225,21 @@ async function getSocialStatus(profilePath, sites) {
   const status = await withDb(profilePath, db => {
     const out = {};
 
+    // Discover actual cookie table name (Chrome 127+ may rename it)
+    let cookieTable = 'cookies';
+    try {
+      const tablesRes = db.exec(`SELECT name FROM sqlite_master WHERE type='table'`);
+      if (tablesRes.length) {
+        for (const [tName] of tablesRes[0].values) {
+          const cols = db.exec(`PRAGMA table_info("${tName}")`);
+          if (cols.length && cols[0].values.some(r => r[1] === 'host_key')) {
+            cookieTable = tName;
+            break;
+          }
+        }
+      }
+    } catch { /* keep default */ }
+
     for (const site of sites) {
       try {
         const domains     = site.domains     || [site.domain];
@@ -239,7 +254,7 @@ async function getSocialStatus(profilePath, sites) {
         // expires_utc > 0  → persistent; must be in the future
         const sql = `
           SELECT name, value, encrypted_value, expires_utc
-          FROM cookies
+          FROM "${cookieTable}"
           WHERE (${domainConds})
             AND name IN (${namePH})
             AND (expires_utc = 0 OR expires_utc > ?)
@@ -331,8 +346,42 @@ async function debugSocialStatus(profilePath, sites) {
   try { masterKey = cookieDecrypt.getChromeMasterKey(userDataPath); }
   catch (e) { dpapiError = String(e.message || e); }
 
+  const rawDiag = await withDb(profilePath, db => {
+    try {
+      // List all tables
+      const tablesRes = db.exec(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`);
+      const tables = tablesRes.length ? tablesRes[0].values.map(r => r[0]) : [];
+
+      // Try to count cookies and sample host_keys from known table names
+      let cookieCount = null;
+      let sampleHosts = [];
+      let cookieTable = null;
+      for (const t of tables) {
+        try {
+          const cnt = db.exec(`SELECT COUNT(*) FROM "${t}"`);
+          const n = cnt.length ? cnt[0].values[0][0] : 0;
+          // Heuristic: the cookie table has many rows and a host_key column
+          const cols = db.exec(`PRAGMA table_info("${t}")`);
+          const colNames = cols.length ? cols[0].values.map(r => r[1]) : [];
+          if (colNames.includes('host_key')) {
+            cookieTable = t;
+            cookieCount = n;
+            const hosts = db.exec(`SELECT DISTINCT host_key FROM "${t}" LIMIT 10`);
+            sampleHosts = hosts.length ? hosts[0].values.map(r => r[0]) : [];
+            break;
+          }
+        } catch { /* skip */ }
+      }
+      return { tables, cookieTable, cookieCount, sampleHosts };
+    } catch (e) {
+      return { error: String(e.message || e) };
+    }
+  });
+
   const siteDiag = await withDb(profilePath, db => {
     const out = {};
+    // Use discovered table name if different from 'cookies'
+    const tbl = (rawDiag && rawDiag.cookieTable) ? rawDiag.cookieTable : 'cookies';
     for (const site of sites) {
       try {
         const domains     = site.domains     || [site.domain];
@@ -343,7 +392,7 @@ async function debugSocialStatus(profilePath, sites) {
         const namePH      = cookieNames.map(() => '?').join(', ');
         const sql = `
           SELECT name, host_key, value, encrypted_value, expires_utc
-          FROM cookies
+          FROM "${tbl}"
           WHERE (${domainConds}) AND name IN (${namePH})
           ORDER BY expires_utc DESC LIMIT 20
         `;
@@ -393,6 +442,7 @@ async function debugSocialStatus(profilePath, sites) {
     walExists,
     dpapiWorking: masterKey !== null,
     dpapiError,
+    rawDiag: rawDiag || {},
     sites: siteDiag || {},
   };
 }
