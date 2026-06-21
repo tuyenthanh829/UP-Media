@@ -772,8 +772,16 @@ async function runCookieDiagnostic() {
     rawBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:#1e293b;border-radius:6px;border:1px solid #334155;color:#94a3b8;font-family:monospace';
     const lines = [];
     if (rd.error) {
-      lines.push(`⚠ DB error: ${eh(rd.error)}`);
-    } else {
+      lines.push(`⚠ Error: ${eh(rd.error)}`);
+    }
+    // File-level info
+    lines.push(`File size: <b style="color:#e2e8f0">${rd.fileSize ?? '?'} bytes</b>`);
+    lines.push(`SQLite magic: <b style="color:${rd.sqliteMagic ? '#4ade80' : '#f87171'}">${rd.sqliteMagic ? 'OK' : 'INVALID - ' + eh((rd.magic||'').slice(0,12))}</b>`);
+    if (rd.networkFiles && rd.networkFiles.length) {
+      lines.push(`Network/ files: <b style="color:#cbd5e1">${rd.networkFiles.map(eh).join(', ')}</b>`);
+    }
+    // SQL-level info
+    if (rd.tables !== undefined) {
       lines.push(`Tables: <b style="color:#e2e8f0">${(rd.tables||[]).map(eh).join(', ') || '(none)'}</b>`);
       if (rd.cookieTable) lines.push(`Cookie table: <b style="color:#4ade80">${eh(rd.cookieTable)}</b> (${rd.cookieCount ?? '?'} rows)`);
       else lines.push(`<b style="color:#f87171">No table with host_key found!</b>`);
