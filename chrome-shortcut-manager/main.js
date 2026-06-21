@@ -161,7 +161,9 @@ ipcMain.handle('delete-shortcut', async (_, shortcutName) => {
 
 ipcMain.handle('open-profile', async (_, profileDirectory) => {
   try {
-    shortcuts.openProfile(profileDirectory);
+    const config = configStore.getConfig();
+    const userDataPath = config.settings?.chromeUserDataPath || null;
+    shortcuts.openProfile(profileDirectory, userDataPath);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message === 'CHROME_NOT_FOUND' ? 'Không tìm thấy Google Chrome.' : 'Không mở được profile.' };
@@ -170,7 +172,9 @@ ipcMain.handle('open-profile', async (_, profileDirectory) => {
 
 ipcMain.handle('open-profile-url', async (_, profileDirectory, url) => {
   try {
-    shortcuts.openProfileWithUrl(profileDirectory, url);
+    const config = configStore.getConfig();
+    const userDataPath = config.settings?.chromeUserDataPath || null;
+    shortcuts.openProfileWithUrl(profileDirectory, url, userDataPath);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
@@ -178,9 +182,11 @@ ipcMain.handle('open-profile-url', async (_, profileDirectory, url) => {
 });
 
 ipcMain.handle('open-profiles-batch', async (_, profileDirectories) => {
+  const config = configStore.getConfig();
+  const userDataPath = config.settings?.chromeUserDataPath || null;
   let ok = 0, fail = 0;
   for (const dir of profileDirectories) {
-    try { shortcuts.openProfile(dir); ok++; await new Promise(r => setTimeout(r, 350)); }
+    try { shortcuts.openProfile(dir, userDataPath); ok++; await new Promise(r => setTimeout(r, 350)); }
     catch { fail++; }
   }
   return { success: true, ok, fail };
@@ -218,7 +224,7 @@ ipcMain.handle('create-chrome-profile', async (_, friendlyName, groups, subGroup
     if (subGroups && Object.keys(subGroups).length) saveData.subGroups = subGroups;
     if (notes && notes.trim()) saveData.notes = notes.trim();
     if (Object.keys(saveData).length) configStore.saveProfileConfig(newDir, saveData);
-    shortcuts.openProfile(newDir);
+    shortcuts.openProfile(newDir, userDataPath);
     return { success: true, profileDirectory: newDir };
   } catch (err) {
     return { success: false, error: err.message === 'CHROME_NOT_FOUND' ? 'Không tìm thấy Google Chrome.' : err.message };

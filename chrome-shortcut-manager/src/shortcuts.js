@@ -56,25 +56,31 @@ function deleteShortcut(shortcutName) {
   return false;
 }
 
-function openProfile(profileDirectory) {
+function openProfile(profileDirectory, userDataPath) {
   const chromePath = findChrome();
   if (!chromePath) throw new Error('CHROME_NOT_FOUND');
   const { spawn } = require('child_process');
-  spawn(chromePath, [
+  const args = [
     `--profile-directory=${profileDirectory}`,
     '--remote-debugging-port=9223',
-  ], { detached: true, stdio: 'ignore' }).unref();
+    '--remote-allow-origins=*',
+  ];
+  if (userDataPath) args.push(`--user-data-dir=${userDataPath}`);
+  spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
 }
 
-function openProfileWithUrl(profileDirectory, url) {
+function openProfileWithUrl(profileDirectory, url, userDataPath) {
   const chromePath = findChrome();
   if (!chromePath) throw new Error('CHROME_NOT_FOUND');
   const { spawn } = require('child_process');
-  spawn(chromePath, [
+  const args = [
     `--profile-directory=${profileDirectory}`,
     '--remote-debugging-port=9223',
-    url,
-  ], { detached: true, stdio: 'ignore' }).unref();
+    '--remote-allow-origins=*',
+  ];
+  if (userDataPath) args.push(`--user-data-dir=${userDataPath}`);
+  args.push(url);
+  spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
 }
 
 module.exports = { findChrome, createShortcut, deleteShortcut, shortcutExists, openProfile, openProfileWithUrl, getDesktopPath };
