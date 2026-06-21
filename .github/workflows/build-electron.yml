@@ -62,9 +62,7 @@ jobs:
         run: npm install
 
       - name: Build Windows .exe
-        run: npm run build:win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish never
 
       # ── 5. Tìm file .exe đã build ────────────────────────────
       - name: Find build outputs
@@ -115,6 +113,7 @@ jobs:
       # ── 7. Thông báo Telegram ─────────────────────────────────
       - name: Notify Telegram — Success
         if: success()
+        continue-on-error: true
         shell: pwsh
         run: |
           $ver = "${{ steps.bump.outputs.version }}"
@@ -130,6 +129,7 @@ jobs:
 
       - name: Notify Telegram — Failure
         if: failure()
+        continue-on-error: true
         shell: pwsh
         run: |
           $time = (Get-Date).ToUniversalTime().AddHours(7).ToString("dd/MM/yyyy HH:mm")
