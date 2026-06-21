@@ -206,6 +206,7 @@ ipcMain.handle('pick-user-data-folder', async () => {
   return chosen;
 });
 
+ipcMain.handle('get-version', async () => app.getVersion());
 ipcMain.handle('get-settings', async () => configStore.getConfig().settings || {});
 
 ipcMain.handle('get-groups', async () => configStore.getGroups());
@@ -331,14 +332,22 @@ ipcMain.handle('kill-and-open-debug', async (_, profileDirectory) => {
   const config = configStore.getConfig();
   const userDataPath = config.settings?.chromeUserDataPath || null;
 
-  // Kill Chrome
-  await new Promise(resolve => {
-    const { exec } = require('child_process');
-    exec('taskkill /F /IM chrome.exe /T', () => resolve());
-  });
-
-  // Wait for all Chrome processes to die
-  await new Promise(r => setTimeout(r, 1500));
+  // Kill Chrome and verify all processes are dead (up to 5s)
+  await new Promise(resolve => { exec('taskkill /F /IM chrome.exe /T', () => resolve()); });
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    const alive = await new Promise(resolve => {
+      exec('wmic process where "name=\'chrome.exe\'" get ProcessId /format:list', (err, stdout) => {
+        resolve(!err && stdout && stdout.includes('ProcessId=') && /ProcessId=\d+/.test(stdout));
+      });
+    });
+    if (!alive) break;
+    if (i === 9) {
+      // Force kill again if still running after 5s
+      await new Promise(resolve => { exec('taskkill /F /IM chrome.exe /T', () => resolve()); });
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
 
   // Open profile with debug port
   try {
@@ -347,12 +356,12 @@ ipcMain.handle('kill-and-open-debug', async (_, profileDirectory) => {
     return { success: false, error: err.message };
   }
 
-  // Poll for port 9223 to open (up to 12s)
-  for (let i = 0; i < 24; i++) {
+  // Poll for port 9223 to open (up to 20s — Chrome can be slow to start)
+  for (let i = 0; i < 40; i++) {
     await new Promise(r => setTimeout(r, 500));
     if (await isPortOpen(9223)) return { success: true, port: 9223 };
   }
-  return { success: false, error: 'CDP port 9223 không mở sau 12 giây. Chrome 130+ có thể chặn remote debugging.' };
+  return { success: false, error: 'CDP port 9223 không mở sau 20 giây. Chrome 130+ consumer build có thể đã tắt remote debugging. Thử đọc cookie khi Chrome đóng.' };
 });
 
 ipcMain.handle('get-social-status-batch', async (_, profilePaths, sites) => {
