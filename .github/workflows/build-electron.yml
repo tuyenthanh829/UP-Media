@@ -119,13 +119,10 @@ jobs:
           $ver = "${{ steps.bump.outputs.version }}"
           $url = "${{ steps.release.outputs.url }}"
           $time = (Get-Date).ToUniversalTime().AddHours(7).ToString("dd/MM/yyyy HH:mm")
-          $msg = "✅ BUILD THÀNH CÔNG%0A%0A📦 Chrome Manager by UP Media%0A🔖 Phiên bản: v$ver%0A%0A📥 Tải về:%0A$url%0A%0A🕐 $time (GMT+7)"
+          $msg = "✅ BUILD THÀNH CÔNG`n`n📦 Chrome Manager by UP Media`n🔖 Phiên bản: v$ver`n`n📥 Tải về:`n$url`n`n🕐 $time (GMT+7)"
           $uri = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
-          Invoke-RestMethod -Uri $uri -Method POST -Body @{
-            chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"
-            text = $msg
-            parse_mode = "HTML"
-          }
+          $body = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $msg } | ConvertTo-Json -Compress
+          Invoke-RestMethod -Uri $uri -Method POST -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
 
       - name: Notify Telegram — Failure
         if: failure()
@@ -134,9 +131,7 @@ jobs:
         run: |
           $time = (Get-Date).ToUniversalTime().AddHours(7).ToString("dd/MM/yyyy HH:mm")
           $run_url = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          $msg = "❌ BUILD THẤT BẠI%0A%0A📦 Chrome Manager by UP Media%0A%0A🔍 Xem log lỗi:%0A$run_url%0A%0A🕐 $time (GMT+7)"
+          $msg = "❌ BUILD THẤT BẠI`n`n📦 Chrome Manager by UP Media`n`n🔍 Xem log lỗi:`n$run_url`n`n🕐 $time (GMT+7)"
           $uri = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
-          Invoke-RestMethod -Uri $uri -Method POST -Body @{
-            chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"
-            text = $msg
-          }
+          $body = @{ chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"; text = $msg } | ConvertTo-Json -Compress
+          Invoke-RestMethod -Uri $uri -Method POST -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
