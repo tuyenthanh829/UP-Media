@@ -325,15 +325,21 @@ async function getSocialStatus(profilePath, sites) {
   ].find(p => fs.existsSync(p));
 
   if (cookieFile) {
+    let isLocked = false;
     try {
-      const fd = fs.openSync(cookieFile, 'r');
-      fs.closeSync(fd);
-    } catch (e) {
-      if (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') {
-        result._chromeLocked = true;
-        return result;
+      const statSz = fs.statSync(cookieFile).size;
+      if (statSz > 0) {
+        const fd = fs.openSync(cookieFile, 'r');
+        try {
+          const testBuf = Buffer.alloc(16);
+          const n = fs.readSync(fd, testBuf, 0, 16, 0);
+          if (n === 0) isLocked = true;
+        } finally {
+          fs.closeSync(fd);
+        }
       }
-    }
+    } catch { isLocked = true; }
+    if (isLocked) { result._chromeLocked = true; return result; }
   }
 
   let masterKey = null;
@@ -454,28 +460,42 @@ async function debugSocialStatus(profilePath, sites) {
   const userDataPath = path.dirname(profilePath);
   const nowUs = nowChromeTime();
 
-  // Detect file lock early — Chrome running with FILE_SHARE_NONE
+  // Detect file lock early — Chrome running with FILE_SHARE_NONE or byte-range lock
   const cookieFileForLockCheck = [
     path.join(profilePath, 'Network', 'Cookies'),
     path.join(profilePath, 'Cookies'),
   ].find(p => fs.existsSync(p));
 
   if (cookieFileForLockCheck) {
+    let isLocked = false;
+    let statSizeForCheck = 0;
+    try { statSizeForCheck = fs.statSync(cookieFileForLockCheck).size; } catch { /* ignore */ }
     try {
-      const fd = fs.openSync(cookieFileForLockCheck, 'r');
-      fs.closeSync(fd);
-    } catch (e) {
-      if (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') {
-        return {
-          _chromeLocked: true,
-          cookieFile: cookieFileForLockCheck,
-          cdpPort: null, cdpAvailable: false,
-          dpapiWorking: false,
-          chromeDiag: { processes: ['(Chrome đang chạy — file bị khóa)'], portsOpen: [], rawCmdLine: '' },
-          rawDiag: { statSize: fs.statSync(cookieFileForLockCheck).size, fileSize: 0, error: 'Chrome đang chạy: FILE_SHARE_NONE — không đọc được' },
-          sites: {},
-        };
+      if (statSizeForCheck > 0) {
+        const fd = fs.openSync(cookieFileForLockCheck, 'r');
+        try {
+          // Read first 16 bytes — if Chrome is running, byte-range lock returns 0 bytes
+          // even though the file can be opened (Chrome uses FILE_SHARE_READ but locks data)
+          const testBuf = Buffer.alloc(16);
+          const n = fs.readSync(fd, testBuf, 0, 16, 0);
+          if (n === 0) isLocked = true;
+        } finally {
+          fs.closeSync(fd);
+        }
       }
+    } catch (e) {
+      isLocked = true; // open failed (true FILE_SHARE_NONE)
+    }
+    if (isLocked) {
+      return {
+        _chromeLocked: true,
+        cookieFile: cookieFileForLockCheck,
+        cdpPort: null, cdpAvailable: false,
+        dpapiWorking: false,
+        chromeDiag: { processes: ['(Chrome đang chạy — file bị khóa)'], portsOpen: [], rawCmdLine: '' },
+        rawDiag: { statSize: statSizeForCheck, fileSize: 0, error: 'Chrome đang chạy: file cookie bị khóa — không đọc được' },
+        sites: {},
+      };
     }
   }
 
