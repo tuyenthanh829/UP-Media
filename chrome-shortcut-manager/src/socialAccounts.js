@@ -301,19 +301,34 @@ async function getSocialStatus(profilePath, sites) {
     result[site.id] = { loggedIn: false, name: site.name, id: site.id };
   }
 
-  // Derive User Data path from profile path (one level up)
   const userDataPath = path.dirname(profilePath);
 
-  // ── Primary: CDP (Chrome running with --remote-debugging-port) ──
-  // This is the most reliable method — Chrome decrypts cookies internally,
-  // no file lock issues, no encryption to bypass.
+  // ── Primary: CDP (Chrome 130+ consumer build has disabled this) ──
   try {
     const cdpResult = await chromeCdp.getSocialStatusViaCdp(userDataPath, sites);
     if (cdpResult) return cdpResult;
   } catch { /* fall through to SQLite */ }
 
   // ── Fallback: SQLite cookie file (Chrome closed or no debug port) ──
-  // Attempt DPAPI decryption — silent failure, falls back gracefully
+  // First probe if the file is locked by Chrome (FILE_SHARE_NONE).
+  // If locked, return _chromeLocked flag so the UI can offer kill-read-reopen.
+  const cookieFile = [
+    path.join(profilePath, 'Network', 'Cookies'),
+    path.join(profilePath, 'Cookies'),
+  ].find(p => fs.existsSync(p));
+
+  if (cookieFile) {
+    try {
+      const fd = fs.openSync(cookieFile, 'r');
+      fs.closeSync(fd);
+    } catch (e) {
+      if (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') {
+        result._chromeLocked = true;
+        return result;
+      }
+    }
+  }
+
   let masterKey = null;
   try { masterKey = cookieDecrypt.getChromeMasterKey(userDataPath); } catch { /* no DPAPI */ }
 

@@ -679,16 +679,17 @@ async function openSocialModal(profile, profilePath) {
   document.getElementById('social-diag-panel').style.display = 'none';
   document.getElementById('modal-social').classList.remove('hidden');
 
-  if (!profileSocialCache[profile.profileDirectory]) {
-    profileSocialCache[profile.profileDirectory] = await window.app.getSocialStatus(profilePath, socialSitesConfig);
-    const sc = profileSocialCache[profile.profileDirectory];
-    const cnt = Object.values(sc).filter(s=>s.loggedIn).length;
+  // Always re-fetch when opening the modal (chrome lock state may have changed)
+  profileSocialCache[profile.profileDirectory] = await window.app.getSocialStatus(profilePath, socialSitesConfig);
+  const sc = profileSocialCache[profile.profileDirectory];
+  if (!sc._chromeLocked) {
+    const cnt = Object.values(sc).filter(s => s.loggedIn).length;
     const card = document.querySelector(`[data-profile-dir="${ea(profile.profileDirectory)}"]`);
     if (card) {
       const sp = card.querySelector('.social-badge-count');
       if (sp) sp.textContent = cnt;
       const btn = card.querySelector('.badge-social');
-      if (btn) btn.classList.toggle('empty', cnt===0);
+      if (btn) btn.classList.toggle('empty', cnt === 0);
     }
     renderSidebar();
   }
@@ -696,9 +697,48 @@ async function openSocialModal(profile, profilePath) {
   document.getElementById('social-loading').style.display = 'none';
   const list = document.getElementById('social-list');
   list.style.display = '';
-  const status = profileSocialCache[profile.profileDirectory];
+  renderSocialList(profile, profilePath);
+}
 
-  // Check if any result used full decryption
+function renderSocialList(profile, profilePath) {
+  const list = document.getElementById('social-list');
+  const status = profileSocialCache[profile.profileDirectory];
+  if (!status) return;
+
+  // Chrome has the cookie file locked — offer kill-read-reopen
+  if (status._chromeLocked) {
+    const decryptBadge = document.getElementById('social-decrypt-badge');
+    if (decryptBadge) decryptBadge.style.display = 'none';
+    list.innerHTML = `
+      <div style="padding:16px;text-align:center;color:var(--warning)">
+        <div style="font-size:22px;margin-bottom:8px">🔒</div>
+        <div style="font-weight:600;margin-bottom:6px">Chrome đang chạy và khóa file cookie</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Chrome 130+ không cho phép đọc cookie khi đang mở.<br>Bấm bên dưới để tạm đóng Chrome, đọc cookie rồi mở lại (khoảng 1–2 giây).</div>
+        <button id="btn-kill-reopen-social" class="btn btn-primary btn-sm">🔄 Đóng Chrome, đọc cookie, mở lại</button>
+      </div>
+    `;
+    document.getElementById('btn-kill-reopen-social').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-kill-reopen-social');
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang xử lý...';
+      const newStatus = await window.app.socialStatusKillReopen(profile.profileDirectory, profilePath, socialSitesConfig);
+      profileSocialCache[profile.profileDirectory] = newStatus;
+      // Update card badge
+      const cnt = Object.values(newStatus).filter(s => s.loggedIn).length;
+      const card = document.querySelector(`[data-profile-dir="${ea(profile.profileDirectory)}"]`);
+      if (card) {
+        const sp = card.querySelector('.social-badge-count');
+        if (sp) sp.textContent = cnt;
+        const b = card.querySelector('.badge-social');
+        if (b) b.classList.toggle('empty', cnt === 0);
+      }
+      renderSidebar();
+      renderSocialList(profile, profilePath);
+    });
+    return;
+  }
+
+  // Normal render
   const usedDecryption = Object.values(status).some(s => s.decrypted);
   const decryptBadge = document.getElementById('social-decrypt-badge');
   if (decryptBadge) {
@@ -710,7 +750,6 @@ async function openSocialModal(profile, profilePath) {
   list.innerHTML = '';
   socialSitesConfig.forEach(site => {
     const s = status[site.id] || { loggedIn: false, name: site.name };
-    // Show which cookie names are being checked
     const cookieNames = site.cookieNames || [site.cookieName];
     const domains = site.domains || [site.domain];
     const cookieHint = cookieNames.join(', ');
