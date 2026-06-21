@@ -755,9 +755,11 @@ async function runCookieDiagnostic() {
   infoBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)';
   const fileOk = !!dbg.cookieFile;
   const dpOk = dbg.dpapiWorking;
+  const walOk = dbg.walExists;
   infoBar.innerHTML = [
     `📁 Cookie DB: <b style="color:${fileOk ? 'var(--success)' : 'var(--danger)'}">${fileOk ? 'Tìm thấy' : 'KHÔNG TÌM THẤY'}</b>`,
     fileOk ? `<span style="color:var(--muted)">(${eh(dbg.cookieFile.split(/[\\/]/).slice(-3).join('/'))})</span>` : '',
+    `&nbsp;|&nbsp; 📋 WAL: <b style="color:${walOk ? 'var(--success)' : 'var(--muted)'}">${walOk ? 'Có (Chrome đang chạy)' : 'Không có'}</b>`,
     `&nbsp;|&nbsp; 🔐 DPAPI: <b style="color:${dpOk ? 'var(--success)' : 'var(--warning)'}">${dpOk ? 'Hoạt động ✓' : 'Không hoạt động'}</b>`,
     dpOk ? '' : `<span style="color:var(--muted);font-size:10px">(dùng fallback prefix)</span>`,
   ].join(' ');

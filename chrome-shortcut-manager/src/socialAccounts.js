@@ -84,7 +84,7 @@ async function getSql() {
   return _SQL;
 }
 
-// ── Open cookie DB via temp copy ─────────────────────────
+// ── Open cookie DB via temp copy (WAL-aware) ─────────────
 async function withDb(profilePath, fn) {
   const cookieFile = [
     path.join(profilePath, 'Network', 'Cookies'),
@@ -93,19 +93,49 @@ async function withDb(profilePath, fn) {
 
   if (!cookieFile) return null;
 
-  const tmpFile = path.join(
-    os.tmpdir(),
-    `csm_ck_${Date.now()}_${Math.random().toString(36).slice(2)}.db`
-  );
+  const uid = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const tmpFile = path.join(os.tmpdir(), `csm_ck_${uid}.db`);
+  const tmpWal  = tmpFile + '-wal';
+  const tmpShm  = tmpFile + '-shm';
+
   try {
     fs.copyFileSync(cookieFile, tmpFile);
+    // Copy WAL/SHM files — critical when Chrome is running (WAL mode)
+    const walSrc = cookieFile + '-wal';
+    const shmSrc = cookieFile + '-shm';
+    if (fs.existsSync(walSrc)) fs.copyFileSync(walSrc, tmpWal);
+    if (fs.existsSync(shmSrc)) fs.copyFileSync(shmSrc, tmpShm);
+
     const SQL = await getSql();
-    const buf = fs.readFileSync(tmpFile);
-    const db = new SQL.Database(buf);
-    try { return await fn(db); }
-    finally { db.close(); }
+
+    // Load into sql.js virtual FS so it can process the WAL file
+    const vfsName = `ck_${uid}`;
+    const dbBuf = fs.readFileSync(tmpFile);
+    SQL.FS.createDataFile('/', vfsName, dbBuf, true, true);
+    if (fs.existsSync(tmpWal)) {
+      SQL.FS.createDataFile('/', vfsName + '-wal', fs.readFileSync(tmpWal), true, true);
+    }
+    if (fs.existsSync(tmpShm)) {
+      SQL.FS.createDataFile('/', vfsName + '-shm', fs.readFileSync(tmpShm), true, true);
+    }
+
+    const db = new SQL.Database('/' + vfsName);
+    try {
+      // Checkpoint WAL so all pending transactions are visible
+      try { db.run('PRAGMA wal_checkpoint(PASSIVE)'); } catch {}
+      return await fn(db);
+    } finally {
+      db.close();
+      try { SQL.FS.unlink('/' + vfsName); } catch {}
+      try { SQL.FS.unlink('/' + vfsName + '-wal'); } catch {}
+      try { SQL.FS.unlink('/' + vfsName + '-shm'); } catch {}
+    }
   } catch { return null; }
-  finally { try { fs.unlinkSync(tmpFile); } catch {} }
+  finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+    try { fs.unlinkSync(tmpWal); } catch {}
+    try { fs.unlinkSync(tmpShm); } catch {}
+  }
 }
 
 /**
@@ -326,8 +356,12 @@ async function debugSocialStatus(profilePath, sites) {
     return out;
   });
 
+  const walFile = cookieFile ? cookieFile + '-wal' : null;
+  const walExists = walFile ? fs.existsSync(walFile) : false;
+
   return {
     cookieFile,
+    walExists,
     dpapiWorking: masterKey !== null,
     dpapiError,
     sites: siteDiag || {},
