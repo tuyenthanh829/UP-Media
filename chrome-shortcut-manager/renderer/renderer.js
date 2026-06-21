@@ -698,6 +698,15 @@ async function openSocialModal(profile, profilePath) {
   list.style.display = '';
   const status = profileSocialCache[profile.profileDirectory];
 
+  // Check if any result used full decryption
+  const usedDecryption = Object.values(status).some(s => s.decrypted);
+  const decryptBadge = document.getElementById('social-decrypt-badge');
+  if (decryptBadge) {
+    decryptBadge.style.display = '';
+    decryptBadge.textContent = usedDecryption ? '🔓 Đã giải mã DPAPI' : '🔒 Không giải mã được (chỉ check tên cookie)';
+    decryptBadge.style.color = usedDecryption ? 'var(--success)' : 'var(--warning)';
+  }
+
   list.innerHTML = '';
   socialSitesConfig.forEach(site => {
     const s = status[site.id] || { loggedIn: false, name: site.name };
@@ -771,11 +780,16 @@ async function runCookieDiagnostic() {
         const isTarget = cookieNames.includes(c.name);
         const chip = document.createElement('span');
         chip.className = 'diag-chip';
-        chip.style.cssText = isTarget
-          ? 'background:var(--success);color:#fff;font-weight:600'
-          : 'background:var(--bg);border:1px solid var(--border);color:var(--muted)';
-        chip.title = `host: ${c.host}`;
-        chip.textContent = c.name;
+        if (isTarget && !c.expired) {
+          chip.style.cssText = 'background:var(--success);color:#fff;font-weight:600';
+        } else if (isTarget && c.expired) {
+          chip.style.cssText = 'background:#fca5a5;color:#7f1d1d;font-weight:600';
+          chip.title = `host: ${c.host} — ĐÃ HẾT HẠN`;
+        } else {
+          chip.style.cssText = 'background:var(--bg);border:1px solid var(--border);color:var(--muted)';
+        }
+        chip.title = chip.title || `host: ${c.host}${c.expired ? ' [hết hạn]' : ''}`;
+        chip.textContent = c.name + (c.expired ? ' ⚠' : '');
         table.appendChild(chip);
       });
       block.appendChild(table);
@@ -784,9 +798,17 @@ async function runCookieDiagnostic() {
     content.appendChild(block);
   });
 
+  // Show whether DPAPI decryption is active
+  const anyDecrypted = results.some(r => r.site && profileSocialCache[_socialModalProfile?.profile?.profileDirectory]?.[r.site.id]?.decrypted);
   const note = document.createElement('div');
   note.style.cssText = 'margin-top:8px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:8px';
-  note.innerHTML = '✅ = cookie đang dò&nbsp;&nbsp;•&nbsp;&nbsp;Chip xám = cookie khác trong domain&nbsp;&nbsp;•&nbsp;&nbsp;Vào <b>⚙ Quản lý site</b> để sửa tên cookie';
+  note.innerHTML = [
+    '✅ xanh = tìm thấy + hợp lệ',
+    '🔴 đỏ = tìm thấy nhưng HẾT HẠN',
+    'xám = cookie khác trong domain',
+    '⚠ = hết hạn',
+    '<br>Vào <b>⚙ Quản lý site</b> để sửa tên cookie nếu cần',
+  ].join('&nbsp;&nbsp;•&nbsp;&nbsp;');
   content.appendChild(note);
 }
 

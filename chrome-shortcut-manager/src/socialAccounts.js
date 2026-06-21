@@ -1,52 +1,77 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const cookieDecrypt = require('./cookieDecrypt');
 
-// cookieNames: multiple names → OR logic (any one present = logged in)
-// domains: multiple domains → OR logic (check any domain)
+/**
+ * Cookie detection strategy per site:
+ *  - cookieNames: the name(s) that definitively indicate a logged-in session.
+ *    We verify both existence AND that the decrypted value is non-empty.
+ *  - domains: all host variants Chrome may store the cookie under.
+ *
+ * REMOVED ttwid from TikTok — it persists after logout (device identifier, not session).
+ */
 const DEFAULT_SOCIAL_SITES = [
   {
     id: 'facebook',  name: 'Facebook',
     domain: 'facebook.com',
     cookieName: 'c_user',
-    cookieNames: ['c_user', 'xs'],
+    // c_user = numeric Facebook UID (non-empty only when logged in)
+    cookieNames: ['c_user'],
   },
   {
     id: 'instagram', name: 'Instagram',
     domain: 'instagram.com',
     cookieName: 'sessionid',
+    // ds_user_id = numeric IG UID; sessionid = session token
+    cookieNames: ['sessionid', 'ds_user_id'],
   },
   {
     id: 'x',         name: 'X (Twitter)',
     domain: 'x.com',
     cookieName: 'auth_token',
-    // Twitter renamed to X — old cookies may still be stored under twitter.com
+    // Check both x.com AND twitter.com — old sessions still stored under twitter.com
     domains: ['x.com', 'twitter.com'],
+    cookieNames: ['auth_token'],
   },
   {
     id: 'tiktok',   name: 'TikTok',
     domain: 'tiktok.com',
     cookieName: 'sessionid',
-    cookieNames: ['sessionid', 'sid_tt', 'ttwid'],
+    // sid_tt is an alternative session key; ttwid is NOT included (persists after logout)
+    cookieNames: ['sessionid', 'sid_tt'],
   },
   {
     id: 'threads',  name: 'Threads',
     domain: 'threads.net',
     cookieName: 'sessionid',
+    cookieNames: ['sessionid'],
   },
   {
     id: 'linkedin', name: 'LinkedIn',
     domain: 'linkedin.com',
     cookieName: 'li_at',
+    // li_at is THE LinkedIn session cookie — non-empty = logged in
+    cookieNames: ['li_at'],
   },
   {
     id: 'chotot',   name: 'Chợ Tốt',
     domain: 'chotot.com',
     cookieName: 'access_token',
-    cookieNames: ['access_token', 'at', 'chotot_token', 'session_token', '_session'],
+    cookieNames: ['access_token', 'at'],
   },
 ];
 
+// Chrome stores time as microseconds since 1601-01-01
+// JS Date.now() is ms since 1970; offset between the two epochs is 11644473600 seconds
+const CHROME_EPOCH_OFFSET_US = BigInt(11644473600) * BigInt(1_000_000);
+
+function nowChromeTime() {
+  // Use BigInt to avoid precision loss for large microsecond values
+  return Number(BigInt(Date.now()) * BigInt(1000) + CHROME_EPOCH_OFFSET_US);
+}
+
+// ── sql.js singleton ─────────────────────────────────────
 let _SQL = null;
 async function getSql() {
   if (_SQL) return _SQL;
@@ -59,76 +84,167 @@ async function getSql() {
   return _SQL;
 }
 
-function openDb(profilePath) {
+// ── Open cookie DB via temp copy ─────────────────────────
+async function withDb(profilePath, fn) {
   const cookieFile = [
     path.join(profilePath, 'Network', 'Cookies'),
     path.join(profilePath, 'Cookies'),
   ].find(p => fs.existsSync(p));
-  return cookieFile || null;
-}
 
-async function withDb(profilePath, fn) {
-  const cookieFile = openDb(profilePath);
   if (!cookieFile) return null;
 
-  const tmpFile = path.join(os.tmpdir(), `csm_ck_${Date.now()}_${Math.random().toString(36).slice(2)}.db`);
+  const tmpFile = path.join(
+    os.tmpdir(),
+    `csm_ck_${Date.now()}_${Math.random().toString(36).slice(2)}.db`
+  );
   try {
     fs.copyFileSync(cookieFile, tmpFile);
     const SQL = await getSql();
     const buf = fs.readFileSync(tmpFile);
     const db = new SQL.Database(buf);
-    try {
-      return await fn(db);
-    } finally {
-      db.close();
-    }
-  } catch { return null; } finally {
-    try { fs.unlinkSync(tmpFile); } catch {}
-  }
+    try { return await fn(db); }
+    finally { db.close(); }
+  } catch { return null; }
+  finally { try { fs.unlinkSync(tmpFile); } catch {} }
 }
 
+/**
+ * Check if an encrypted_value blob from Chrome's cookie DB represents a valid (non-empty) session.
+ * Returns true if:
+ *   - masterKey available → decrypt and verify value is non-empty string
+ *   - masterKey unavailable → blob is a v10/v11 Chrome-encrypted value (existence = session active)
+ */
+function isCookieValueValid(rawEncrypted, masterKey) {
+  if (!rawEncrypted) return false;
+
+  const buf = Buffer.isBuffer(rawEncrypted)
+    ? rawEncrypted
+    : Buffer.from(rawEncrypted instanceof Uint8Array ? rawEncrypted : Object.values(rawEncrypted));
+
+  if (buf.length < 4) return false;
+
+  if (masterKey) {
+    const decrypted = cookieDecrypt.decryptCookieValue(buf, masterKey);
+    return decrypted !== null && decrypted.length > 0;
+  }
+
+  // Fallback without decryption: if the blob starts with v10/v11 it is an active Chrome session
+  const prefix = buf.slice(0, 3).toString('ascii');
+  return prefix === 'v10' || prefix === 'v11';
+}
+
+// ── Main detection ────────────────────────────────────────
+/**
+ * Check which social sites are logged in for a given Chrome profile.
+ *
+ * Detection quality (best → worst):
+ *   1. DPAPI available → decrypt cookie value → verify non-empty → same accuracy as Gmail
+ *   2. DPAPI unavailable → v10/v11 prefix + not expired → very good
+ *   3. Fallback plaintext value (old Chrome / no encryption) → good
+ *
+ * @param {string}   profilePath  e.g. .../User Data/Profile 1
+ * @param {object[]} sites        list of site configs (DEFAULT_SOCIAL_SITES or user-saved)
+ * @returns {object} { siteId: { loggedIn, name, id, decrypted? } }
+ */
 async function getSocialStatus(profilePath, sites) {
   const result = {};
   for (const site of sites) {
     result[site.id] = { loggedIn: false, name: site.name, id: site.id };
   }
 
+  // Derive User Data path from profile path (one level up)
+  const userDataPath = path.dirname(profilePath);
+
+  // Attempt DPAPI decryption — silent failure, falls back gracefully
+  let masterKey = null;
+  try { masterKey = cookieDecrypt.getChromeMasterKey(userDataPath); } catch { /* no DPAPI */ }
+
+  const nowUs = nowChromeTime();
+
   const status = await withDb(profilePath, db => {
     const out = {};
+
     for (const site of sites) {
       try {
-        const domains = site.domains || [site.domain];
-        const cookieNames = site.cookieNames || [site.cookieName];
+        const domains     = site.domains     || [site.domain];
+        const cookieNames = (site.cookieNames || [site.cookieName]).filter(Boolean);
+        if (!cookieNames.length) continue;
 
-        // Build: WHERE (host_key LIKE ? OR ...) AND name IN (?, ...)
         const domainConds = domains.map(() => 'host_key LIKE ?').join(' OR ');
-        const namePH = cookieNames.map(() => '?').join(', ');
-        const sql = `SELECT 1 FROM cookies WHERE (${domainConds}) AND name IN (${namePH}) LIMIT 1`;
-        const params = [...domains.map(d => `%${d}%`), ...cookieNames];
+        const namePH      = cookieNames.map(() => '?').join(', ');
+
+        // Select value AND encrypted_value; exclude expired cookies
+        // expires_utc = 0  → session cookie (valid as long as browser is open)
+        // expires_utc > 0  → persistent; must be in the future
+        const sql = `
+          SELECT name, value, encrypted_value, expires_utc
+          FROM cookies
+          WHERE (${domainConds})
+            AND name IN (${namePH})
+            AND (expires_utc = 0 OR expires_utc > ?)
+          ORDER BY expires_utc DESC
+          LIMIT 10
+        `;
+        const params = [...domains.map(d => `%${d}%`), ...cookieNames, nowUs];
 
         const stmt = db.prepare(sql);
         stmt.bind(params);
-        const found = stmt.step();
+
+        let found = false;
+        while (stmt.step()) {
+          const row = stmt.getAsObject();
+
+          // 1. Plaintext value (old Chrome or unencrypted cookies)
+          if (row.value && String(row.value).length > 0) {
+            found = true;
+            break;
+          }
+
+          // 2. Encrypted value — decrypt or check signature
+          if (row.encrypted_value) {
+            if (isCookieValueValid(row.encrypted_value, masterKey)) {
+              found = true;
+              break;
+            }
+          }
+        }
         stmt.free();
-        out[site.id] = { loggedIn: found, name: site.name, id: site.id };
-      } catch { /* skip site */ }
+
+        out[site.id] = {
+          loggedIn: found,
+          name: site.name,
+          id: site.id,
+          decrypted: masterKey !== null, // whether we used full decryption
+        };
+      } catch { /* skip this site */ }
     }
+
     return out;
   });
 
   return status || result;
 }
 
-// Diagnostic: list all cookie names found for a given domain in a profile
+// ── Diagnostic: list all cookies for a domain ─────────────
+/**
+ * Return all cookie names and hosts found for a domain.
+ * Used by the "Dò cookie" diagnostic panel.
+ */
 async function getCookiesForDomain(profilePath, domain) {
   const rows = await withDb(profilePath, db => {
     try {
       const res = db.exec(
-        `SELECT DISTINCT name, host_key FROM cookies WHERE host_key LIKE ? ORDER BY name LIMIT 200`,
+        `SELECT DISTINCT name, host_key, expires_utc
+         FROM cookies WHERE host_key LIKE ? ORDER BY name LIMIT 300`,
         [`%${domain}%`]
       );
       if (!res.length || !res[0].values.length) return [];
-      return res[0].values.map(([name, host]) => ({ name, host }));
+      const nowUs = nowChromeTime();
+      return res[0].values.map(([name, host, exp]) => ({
+        name,
+        host,
+        expired: exp > 0 && exp < nowUs,
+      }));
     } catch { return []; }
   });
   return rows || [];
