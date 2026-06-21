@@ -57,8 +57,10 @@ const DEFAULT_SOCIAL_SITES = [
   {
     id: 'chotot',   name: 'Chợ Tốt',
     domain: 'chotot.com',
-    cookieName: 'access_token',
-    cookieNames: ['access_token', 'at', 'token', 'user_token', 'chotot_token', 'auth_token', 'session'],
+    cookieName: 'u.ac',
+    // u.ac = numeric user ID (clearest login indicator, similar to Facebook's c_user)
+    // idToken / privateToken = JWT session tokens
+    cookieNames: ['u.ac', 'idToken', 'privateToken'],
   },
 ];
 
