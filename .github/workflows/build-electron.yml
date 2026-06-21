@@ -5,7 +5,11 @@ on:
     branches: [main]
     paths:
       - 'chrome-shortcut-manager/**'
-  workflow_dispatch:  # Cho phép chạy tay từ tab Actions trên GitHub
+      - '!chrome-shortcut-manager/package.json'  # tránh loop khi bump version
+  workflow_dispatch:
+
+permissions:
+  contents: write  # cần để tạo Release và commit version bump
 
 jobs:
   build:
@@ -16,9 +20,14 @@ jobs:
         working-directory: chrome-shortcut-manager
 
     steps:
+      # ── 1. Checkout ──────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
+      # ── 2. Setup Node ─────────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -26,31 +35,110 @@ jobs:
           cache: 'npm'
           cache-dependency-path: chrome-shortcut-manager/package-lock.json
 
+      # ── 3. Tự tăng patch version (1.8.0 → 1.8.1) ────────────
+      - name: Bump patch version
+        id: bump
+        shell: pwsh
+        run: |
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $parts = $pkg.version -split '\.'
+          $parts[2] = [int]$parts[2] + 1
+          $newVer = $parts -join '.'
+          $pkg.version = $newVer
+          # Ghi lại với UTF-8, giữ indent 2 spaces
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
+          echo "version=$newVer" >> $env:GITHUB_OUTPUT
+          Write-Host "Version bumped to $newVer"
+
+      - name: Commit version bump
+        shell: pwsh
+        run: |
+          git config user.email "noreply@anthropic.com"
+          git config user.name "Claude"
+          git add package.json
+          git commit -m "chore: bump version to v${{ steps.bump.outputs.version }} [skip ci]"
+          git push origin main
+
+      # ── 4. Build ──────────────────────────────────────────────
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Windows app
+      - name: Build Windows .exe
         run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get version
-        id: version
-        run: |
-          $v = (Get-Content package.json | ConvertFrom-Json).version
-          echo "version=$v" >> $env:GITHUB_OUTPUT
+      # ── 5. Tìm file .exe đã build ────────────────────────────
+      - name: Find build outputs
+        id: files
         shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Path dist -Filter "*Setup*.exe" | Select-Object -First 1
+          $portable = Get-ChildItem -Path dist -Filter "*portable*.exe" | Select-Object -First 1
+          if (-not $setup) { $setup = Get-ChildItem -Path dist -Filter "*.exe" | Where-Object { $_.Name -notlike "*portable*" } | Select-Object -First 1 }
+          if (-not $portable) { $portable = Get-ChildItem -Path dist -Filter "*.exe" | Where-Object { $_.Name -like "*portable*" } | Select-Object -First 1 }
+          echo "setup_path=chrome-shortcut-manager/dist/$($setup.Name)" >> $env:GITHUB_OUTPUT
+          echo "portable_path=chrome-shortcut-manager/dist/$($portable.Name)" >> $env:GITHUB_OUTPUT
+          echo "setup_name=$($setup.Name)" >> $env:GITHUB_OUTPUT
+          echo "portable_name=$($portable.Name)" >> $env:GITHUB_OUTPUT
+          Write-Host "Setup: $($setup.Name)"
+          Write-Host "Portable: $($portable.Name)"
 
-      - name: Upload installer (.exe setup)
-        uses: actions/upload-artifact@v4
+      # ── 6. Tạo GitHub Release với file đính kèm ───────────────
+      - name: Create GitHub Release
+        id: release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ChromeManager-${{ steps.version.outputs.version }}-Setup
-          path: chrome-shortcut-manager/dist/*Setup*.exe
-          retention-days: 30
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: "Chrome Manager by UP Media v${{ steps.bump.outputs.version }}"
+          body: |
+            ## 🚀 Chrome Manager by UP Media v${{ steps.bump.outputs.version }}
 
-      - name: Upload portable (.exe portable)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ChromeManager-${{ steps.version.outputs.version }}-Portable
-          path: chrome-shortcut-manager/dist/*portable*.exe
-          retention-days: 30
+            ### 📥 Tải về
+            | File | Mô tả |
+            |------|-------|
+            | `${{ steps.files.outputs.setup_name }}` | **Cài đặt** — khuyến nghị, tạo shortcut tự động |
+            | `${{ steps.files.outputs.portable_name }}` | **Portable** — chạy thẳng không cần cài |
+
+            ### 📋 Hướng dẫn cập nhật
+            1. Tải file Setup bên dưới
+            2. Chạy → cài đè lên phiên bản cũ
+            3. Shortcut Desktop tự cập nhật
+
+            ---
+            *Build tự động bởi GitHub Actions • ${{ github.sha }}*
+          files: |
+            chrome-shortcut-manager/dist/*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 7. Thông báo Telegram ─────────────────────────────────
+      - name: Notify Telegram — Success
+        if: success()
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.bump.outputs.version }}"
+          $url = "${{ steps.release.outputs.url }}"
+          $time = (Get-Date).ToUniversalTime().AddHours(7).ToString("dd/MM/yyyy HH:mm")
+          $msg = "✅ BUILD THÀNH CÔNG%0A%0A📦 Chrome Manager by UP Media%0A🔖 Phiên bản: v$ver%0A%0A📥 Tải về:%0A$url%0A%0A🕐 $time (GMT+7)"
+          $uri = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
+          Invoke-RestMethod -Uri $uri -Method POST -Body @{
+            chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"
+            text = $msg
+            parse_mode = "HTML"
+          }
+
+      - name: Notify Telegram — Failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $time = (Get-Date).ToUniversalTime().AddHours(7).ToString("dd/MM/yyyy HH:mm")
+          $run_url = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          $msg = "❌ BUILD THẤT BẠI%0A%0A📦 Chrome Manager by UP Media%0A%0A🔍 Xem log lỗi:%0A$run_url%0A%0A🕐 $time (GMT+7)"
+          $uri = "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage"
+          Invoke-RestMethod -Uri $uri -Method POST -Body @{
+            chat_id = "${{ secrets.TELEGRAM_CHAT_ID }}"
+            text = $msg
+          }
