@@ -383,11 +383,11 @@ async function debugSocialStatus(profilePath, sites) {
   const nowUs = nowChromeTime();
 
   // ── Try CDP first ──────────────────────────────────────────
-  const cdpPort = chromeCdp.getCdpPort(userDataPath);
-  let cdpCookies = null;
-  let cdpError = null;
   const cdpPortFile = path.join(userDataPath, 'DevToolsActivePort');
   const cdpPortFileExists = fs.existsSync(cdpPortFile);
+  const cdpPort = await chromeCdp.getCdpPort(userDataPath);
+  let cdpCookies = null;
+  let cdpError = null;
   if (cdpPort) {
     try { cdpCookies = await chromeCdp.getAllCookies(cdpPort); }
     catch (e) { cdpError = String(e.message || e); }

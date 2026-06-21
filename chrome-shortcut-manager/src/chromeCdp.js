@@ -1,13 +1,7 @@
 /**
  * Minimal Chrome DevTools Protocol (CDP) client.
- * Used to read cookies directly from Chrome's memory when Chrome is running,
- * bypassing the SQLite file lock entirely.
- *
- * Flow:
- *   1. Chrome launched with --remote-debugging-port=0 → writes port to DevToolsActivePort
- *   2. We read that port, HTTP-GET /json/version to get the WebSocket URL
- *   3. We open a WebSocket, send Network.getAllCookies, parse the result
- *   4. Filter cookies by domain/name for social login detection
+ * Uses a fixed debug port (9223) to avoid relying on DevToolsActivePort file,
+ * which Chrome 149+ may not create reliably with --remote-debugging-port=0.
  */
 
 const http  = require('http');
@@ -16,18 +10,49 @@ const crypto = require('crypto');
 const path  = require('path');
 const fs    = require('fs');
 
+const FIXED_DEBUG_PORT = 9223;
+
 // ── Port discovery ────────────────────────────────────────
 /**
- * Chrome writes the chosen debug port to <userDataPath>/DevToolsActivePort.
- * Returns null if the file doesn't exist (Chrome not running or no debug port).
+ * Check if Chrome's debug server is reachable via TCP on the given port.
+ * Much more reliable than checking DevToolsActivePort file.
  */
-function getCdpPort(userDataPath) {
+function isPortOpen(port, timeoutMs = 600) {
+  return new Promise(resolve => {
+    const sock = net.createConnection(port, '127.0.0.1');
+    sock.setTimeout(timeoutMs);
+    sock.on('connect', () => { sock.destroy(); resolve(true); });
+    sock.on('error',   () => resolve(false));
+    sock.on('timeout', () => { sock.destroy(); resolve(false); });
+  });
+}
+
+/**
+ * Find Chrome's CDP port. Tries:
+ *   1. Our fixed port (9223)
+ *   2. DevToolsActivePort file (for --remote-debugging-port=0 case)
+ *   3. Common ports 9222, 9224
+ * Returns port number or null if Chrome debug server not found.
+ */
+async function getCdpPort(userDataPath) {
+  // Try fixed port first
+  if (await isPortOpen(FIXED_DEBUG_PORT)) return FIXED_DEBUG_PORT;
+
+  // Try DevToolsActivePort file (old --remote-debugging-port=0 approach)
   try {
     const portFile = path.join(userDataPath, 'DevToolsActivePort');
-    if (!fs.existsSync(portFile)) return null;
-    const port = parseInt(fs.readFileSync(portFile, 'utf8').split('\n')[0]);
-    return isNaN(port) ? null : port;
-  } catch { return null; }
+    if (fs.existsSync(portFile)) {
+      const port = parseInt(fs.readFileSync(portFile, 'utf8').split('\n')[0]);
+      if (!isNaN(port) && port !== FIXED_DEBUG_PORT && await isPortOpen(port)) return port;
+    }
+  } catch { /* ignore */ }
+
+  // Try common ports as last resort
+  for (const p of [9222, 9224]) {
+    if (await isPortOpen(p)) return p;
+  }
+
+  return null;
 }
 
 // ── HTTP helper ───────────────────────────────────────────
@@ -162,7 +187,7 @@ async function getAllCookies(port) {
  * @returns {{ siteId: { loggedIn, name, id, via:'cdp' } } | null}  null if CDP unavailable
  */
 async function getSocialStatusViaCdp(userDataPath, sites) {
-  const port = getCdpPort(userDataPath);
+  const port = await getCdpPort(userDataPath);
   if (!port) return null;
 
   let cookies;

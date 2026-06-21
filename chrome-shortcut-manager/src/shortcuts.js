@@ -62,7 +62,7 @@ function openProfile(profileDirectory) {
   const { spawn } = require('child_process');
   spawn(chromePath, [
     `--profile-directory=${profileDirectory}`,
-    '--remote-debugging-port=0',
+    '--remote-debugging-port=9223',
   ], { detached: true, stdio: 'ignore' }).unref();
 }
 
@@ -72,7 +72,7 @@ function openProfileWithUrl(profileDirectory, url) {
   const { spawn } = require('child_process');
   spawn(chromePath, [
     `--profile-directory=${profileDirectory}`,
-    '--remote-debugging-port=0',
+    '--remote-debugging-port=9223',
     url,
   ], { detached: true, stdio: 'ignore' }).unref();
 }
