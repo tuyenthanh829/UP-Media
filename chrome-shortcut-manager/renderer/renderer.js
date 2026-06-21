@@ -784,10 +784,27 @@ async function runCookieDiagnostic() {
   panel.style.display = '';
   content.innerHTML = '<div style="color:var(--muted);font-size:12px">Đang dò cookie...</div>';
 
-  // Use the detailed debug API
   const dbg = await window.app.debugSocialStatus(profilePath, socialSitesConfig);
 
   content.innerHTML = '';
+
+  // Chrome is running and holding FILE_SHARE_NONE — diagnostic can't read the file
+  if (dbg._chromeLocked) {
+    const cached = profileSocialCache[profile.profileDirectory];
+    const cachedHasResults = cached && !cached._chromeLocked && Object.values(cached).some(s => s && typeof s.loggedIn === 'boolean');
+    content.innerHTML = `
+      <div style="padding:12px;background:#1e293b;border-radius:6px;border:1px solid #334155;font-size:12px;color:#94a3b8">
+        <div style="color:#fbbf24;font-weight:600;margin-bottom:6px">🔒 Chrome đang chạy — không đọc được cookie trực tiếp</div>
+        <div style="margin-bottom:8px">Chrome 130+ dùng <b style="color:#e2e8f0">FILE_SHARE_NONE</b> để khóa file cookie. Kết quả "Dò cookie" chỉ hoạt động khi Chrome đóng.</div>
+        ${cachedHasResults
+          ? `<div style="color:#4ade80">✓ Kết quả social đang hiển thị ở trên là chính xác (đọc từ snapshot lúc Chrome đóng).</div>`
+          : `<div style="color:#f87171">Bấm <b>"🔄 Đóng Chrome, đọc cookie, mở lại"</b> ở trên để lấy kết quả chính xác.</div>`
+        }
+        <div style="margin-top:8px;color:#64748b">stat size: <b style="color:#e2e8f0">${dbg.rawDiag?.statSize ?? '?'} bytes</b> (file tồn tại, chỉ bị khóa)</div>
+      </div>
+    `;
+    return;
+  }
 
   // Header: cookie file + DPAPI status
   const infoBar = document.createElement('div');
