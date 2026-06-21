@@ -364,6 +364,27 @@ ipcMain.handle('kill-and-open-debug', async (_, profileDirectory) => {
   return { success: false, error: 'CDP port 9223 không mở sau 20 giây. Chrome 130+ consumer build có thể đã tắt remote debugging. Thử đọc cookie khi Chrome đóng.' };
 });
 
+// Kill Chrome (all processes), read social status from unlocked file, reopen Chrome.
+// Chrome releases the file lock immediately when the process exits.
+ipcMain.handle('social-status-kill-reopen', async (_, profileDirectory, profilePath, sites) => {
+  const config = configStore.getConfig();
+  const userDataPath = config.settings?.chromeUserDataPath || null;
+
+  // Kill all Chrome processes
+  await new Promise(resolve => { exec('taskkill /F /IM chrome.exe /T', () => resolve()); });
+
+  // Wait briefly — file lock releases as soon as chrome.exe exits
+  await new Promise(r => setTimeout(r, 800));
+
+  // Read cookies (Chrome is dead, no lock)
+  const status = await social.getSocialStatus(profilePath, sites);
+
+  // Reopen Chrome with the same profile
+  try { shortcuts.openProfile(profileDirectory, userDataPath); } catch { /* ignore */ }
+
+  return status;
+});
+
 ipcMain.handle('get-social-status-batch', async (_, profilePaths, sites) => {
   const results = {};
   for (const { dir, profilePath } of profilePaths) {
