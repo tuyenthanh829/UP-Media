@@ -34,5 +34,6 @@ contextBridge.exposeInMainWorld('app', {
   getCookiesForDomain: (profilePath, domain) => ipcRenderer.invoke('get-cookies-for-domain', profilePath, domain),
   debugSocialStatus: (profilePath, sites) => ipcRenderer.invoke('debug-social-status', profilePath, sites),
   killAndOpenDebug: (profileDirectory) => ipcRenderer.invoke('kill-and-open-debug', profileDirectory),
+  getVersion: () => ipcRenderer.invoke('get-version'),
   renameGroupInProfiles: (oldName, newName) => ipcRenderer.invoke('rename-group-in-profiles', oldName, newName),
 });

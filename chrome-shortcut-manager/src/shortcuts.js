@@ -64,6 +64,8 @@ function openProfile(profileDirectory, userDataPath) {
     `--profile-directory=${profileDirectory}`,
     '--remote-debugging-port=9223',
     '--remote-allow-origins=*',
+    '--no-first-run',
+    '--no-default-browser-check',
   ];
   if (userDataPath) args.push(`--user-data-dir=${userDataPath}`);
   spawn(chromePath, args, { detached: true, stdio: 'ignore' }).unref();
@@ -77,6 +79,8 @@ function openProfileWithUrl(profileDirectory, url, userDataPath) {
     `--profile-directory=${profileDirectory}`,
     '--remote-debugging-port=9223',
     '--remote-allow-origins=*',
+    '--no-first-run',
+    '--no-default-browser-check',
   ];
   if (userDataPath) args.push(`--user-data-dir=${userDataPath}`);
   args.push(url);

@@ -1459,11 +1459,15 @@ document.getElementById('modal-manage-sites').addEventListener('click', e => { i
 
 // ── Init ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  [allGroups, allGroupSubs, socialSitesConfig] = await Promise.all([
+  const [groups, subs, sites, version] = await Promise.all([
     window.app.getGroups(),
     window.app.getGroupSubs(),
     window.app.getSocialSites(),
+    window.app.getVersion(),
   ]);
+  allGroups = groups; allGroupSubs = subs; socialSitesConfig = sites;
+  const verEl = document.getElementById('app-version');
+  if (verEl && version) verEl.textContent = `v${version}`;
   renderSidebar();
   scanProfiles();
 });
