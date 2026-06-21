@@ -1,7 +1,11 @@
 {
   "name": "chrome-manager-upmedia",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Chrome Manager by UP Media — Quản lý Chrome profile và tạo shortcut Desktop cho Windows",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tuyenthanh829/UP-Media"
+  },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -25,11 +29,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico"
@@ -51,6 +59,8 @@
       "assets/**/*",
       "node_modules/sql.js/**/*"
     ],
-    "asarUnpack": ["node_modules/sql.js/dist/**"]
+    "asarUnpack": [
+      "node_modules/sql.js/dist/**"
+    ]
   }
 }
