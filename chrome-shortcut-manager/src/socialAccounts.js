@@ -58,7 +58,7 @@ const DEFAULT_SOCIAL_SITES = [
     id: 'chotot',   name: 'Chợ Tốt',
     domain: 'chotot.com',
     cookieName: 'access_token',
-    cookieNames: ['access_token', 'at'],
+    cookieNames: ['access_token', 'at', 'token', 'user_token', 'chotot_token', 'auth_token', 'session'],
   },
 ];
 
@@ -84,6 +84,59 @@ async function getSql() {
   return _SQL;
 }
 
+// ── SQLite WAL merger ─────────────────────────────────────
+/**
+ * Merge WAL file into main DB buffer so sql.js sees the latest data.
+ * SQLite WAL format: 32-byte header + frames of (24-byte header + pageSize bytes).
+ * We iterate frames, validate salt matches WAL header, apply latest page per page#.
+ */
+function mergeWalIntoDb(dbBuf, walBuf) {
+  if (!walBuf || walBuf.length < 32) return dbBuf;
+
+  const magic = walBuf.readUInt32BE(0);
+  if (magic !== 0x377f0682 && magic !== 0x377f0683) return dbBuf;
+
+  const pageSize = walBuf.readUInt32BE(8);
+  if (pageSize < 512 || pageSize > 65536) return dbBuf;
+
+  const salt1 = walBuf.readUInt32BE(16);
+  const salt2 = walBuf.readUInt32BE(20);
+
+  // Collect last valid frame per page number
+  const pageMap = new Map(); // pageNum → Buffer(page data)
+  let maxPageNum = 0;
+  const frameSize = 24 + pageSize;
+  let offset = 32;
+
+  while (offset + frameSize <= walBuf.length) {
+    const pageNum    = walBuf.readUInt32BE(offset);
+    const frameSalt1 = walBuf.readUInt32BE(offset + 8);
+    const frameSalt2 = walBuf.readUInt32BE(offset + 12);
+
+    // Frames with mismatched salt are from a stale WAL cycle — stop
+    if (frameSalt1 !== salt1 || frameSalt2 !== salt2) break;
+    if (pageNum < 1) { offset += frameSize; continue; }
+
+    pageMap.set(pageNum, walBuf.slice(offset + 24, offset + 24 + pageSize));
+    if (pageNum > maxPageNum) maxPageNum = pageNum;
+    offset += frameSize;
+  }
+
+  if (pageMap.size === 0) return dbBuf;
+
+  // Expand result buffer if WAL introduces pages beyond current DB size
+  const neededSize = maxPageNum * pageSize;
+  const result = neededSize > dbBuf.length
+    ? Buffer.concat([dbBuf, Buffer.alloc(neededSize - dbBuf.length)])
+    : Buffer.from(dbBuf);
+
+  for (const [pageNum, pageData] of pageMap) {
+    pageData.copy(result, (pageNum - 1) * pageSize);
+  }
+
+  return result;
+}
+
 // ── Open cookie DB via temp copy (WAL-aware) ─────────────
 async function withDb(profilePath, fn) {
   const cookieFile = [
@@ -93,49 +146,24 @@ async function withDb(profilePath, fn) {
 
   if (!cookieFile) return null;
 
-  const uid = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const tmpFile = path.join(os.tmpdir(), `csm_ck_${uid}.db`);
-  const tmpWal  = tmpFile + '-wal';
-  const tmpShm  = tmpFile + '-shm';
+  const walSrc = cookieFile + '-wal';
 
   try {
-    fs.copyFileSync(cookieFile, tmpFile);
-    // Copy WAL/SHM files — critical when Chrome is running (WAL mode)
-    const walSrc = cookieFile + '-wal';
-    const shmSrc = cookieFile + '-shm';
-    if (fs.existsSync(walSrc)) fs.copyFileSync(walSrc, tmpWal);
-    if (fs.existsSync(shmSrc)) fs.copyFileSync(shmSrc, tmpShm);
+    let dbBuf = fs.readFileSync(cookieFile);
+
+    // Merge WAL if Chrome is currently running (WAL mode)
+    if (fs.existsSync(walSrc)) {
+      try {
+        const walBuf = fs.readFileSync(walSrc);
+        dbBuf = mergeWalIntoDb(dbBuf, walBuf);
+      } catch { /* WAL merge failed, use main DB as-is */ }
+    }
 
     const SQL = await getSql();
-
-    // Load into sql.js virtual FS so it can process the WAL file
-    const vfsName = `ck_${uid}`;
-    const dbBuf = fs.readFileSync(tmpFile);
-    SQL.FS.createDataFile('/', vfsName, dbBuf, true, true);
-    if (fs.existsSync(tmpWal)) {
-      SQL.FS.createDataFile('/', vfsName + '-wal', fs.readFileSync(tmpWal), true, true);
-    }
-    if (fs.existsSync(tmpShm)) {
-      SQL.FS.createDataFile('/', vfsName + '-shm', fs.readFileSync(tmpShm), true, true);
-    }
-
-    const db = new SQL.Database('/' + vfsName);
-    try {
-      // Checkpoint WAL so all pending transactions are visible
-      try { db.run('PRAGMA wal_checkpoint(PASSIVE)'); } catch {}
-      return await fn(db);
-    } finally {
-      db.close();
-      try { SQL.FS.unlink('/' + vfsName); } catch {}
-      try { SQL.FS.unlink('/' + vfsName + '-wal'); } catch {}
-      try { SQL.FS.unlink('/' + vfsName + '-shm'); } catch {}
-    }
+    const db = new SQL.Database(new Uint8Array(dbBuf));
+    try { return await fn(db); }
+    finally { db.close(); }
   } catch { return null; }
-  finally {
-    try { fs.unlinkSync(tmpFile); } catch {}
-    try { fs.unlinkSync(tmpWal); } catch {}
-    try { fs.unlinkSync(tmpShm); } catch {}
-  }
 }
 
 /**
@@ -356,8 +384,7 @@ async function debugSocialStatus(profilePath, sites) {
     return out;
   });
 
-  const walFile = cookieFile ? cookieFile + '-wal' : null;
-  const walExists = walFile ? fs.existsSync(walFile) : false;
+  const walExists = cookieFile ? fs.existsSync(cookieFile + '-wal') : false;
 
   return {
     cookieFile,
