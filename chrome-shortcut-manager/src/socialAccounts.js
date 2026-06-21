@@ -390,14 +390,42 @@ async function debugSocialStatus(profilePath, sites) {
       const rawBuf = readFileBypassed(cookieFile);
       rawDiag.fileSize = rawBuf.length;
       rawDiag.magic = rawBuf.slice(0, 16).toString('hex');
-      // SQLite magic: "SQLite format 3\0" = 53514c697465 20666f726d617420330000
       rawDiag.sqliteMagic = rawBuf.slice(0, 6).toString('ascii') === 'SQLite';
 
-      // List all files in Network folder for context
+      // Scan Network/ folder — show file sizes to find where Chrome actually stores data
       const networkDir = path.dirname(cookieFile);
       try {
-        rawDiag.networkFiles = fs.readdirSync(networkDir).slice(0, 20);
+        rawDiag.networkFiles = fs.readdirSync(networkDir).map(f => {
+          try { return `${f}(${fs.statSync(path.join(networkDir, f)).size}B)`; }
+          catch { return f; }
+        }).slice(0, 25);
       } catch { rawDiag.networkFiles = []; }
+
+      // Also scan Profile root for SQLite files with actual content
+      try {
+        const profileFiles = fs.readdirSync(profilePath);
+        rawDiag.sqliteInProfile = profileFiles
+          .filter(f => !f.includes('-journal') && !f.includes('-wal') && !f.includes('-shm'))
+          .map(f => {
+            const fp = path.join(profilePath, f);
+            try {
+              const stat = fs.statSync(fp);
+              if (!stat.isFile() || stat.size < 100) return null;
+              const hdr = Buffer.alloc(6);
+              const fd = fs.openSync(fp, 'r');
+              fs.readSync(fd, hdr, 0, 6, 0);
+              fs.closeSync(fd);
+              if (hdr.toString('ascii') === 'SQLite') return `${f}(${stat.size}B)`;
+            } catch { /* skip */ }
+            return null;
+          }).filter(Boolean).slice(0, 15);
+      } catch { rawDiag.sqliteInProfile = []; }
+
+      // Check Cookies-journal size (rollback journal — may have old pages)
+      const journalFile = cookieFile + '-journal';
+      if (fs.existsSync(journalFile)) {
+        try { rawDiag.journalSize = fs.statSync(journalFile).size; } catch { rawDiag.journalSize = -1; }
+      }
     } catch (e) {
       rawDiag.error = String(e.message || e);
     }

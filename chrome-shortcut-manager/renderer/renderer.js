@@ -789,6 +789,13 @@ async function runCookieDiagnostic() {
         lines.push(`Sample hosts: <b style="color:#e2e8f0">${rd.sampleHosts.slice(0,5).map(eh).join(', ')}</b>`);
       }
     }
+    if (rd.journalSize !== undefined) lines.push(`Cookies-journal: <b style="color:#fbbf24">${rd.journalSize}B</b>`);
+    if (rd.networkFiles && rd.networkFiles.length) {
+      lines.push(`<br>Network/: <span style="color:#94a3b8">${rd.networkFiles.map(eh).join(' | ')}</span>`);
+    }
+    if (rd.sqliteInProfile && rd.sqliteInProfile.length) {
+      lines.push(`<br>SQLite in profile/: <b style="color:#4ade80">${rd.sqliteInProfile.map(eh).join(' | ')}</b>`);
+    }
     rawBar.innerHTML = lines.join('&nbsp;&nbsp;|&nbsp;&nbsp;');
     content.appendChild(rawBar);
   }
