@@ -271,15 +271,22 @@ function isCookieValueValid(rawEncrypted, masterKey) {
 
   if (buf.length < 4) return false;
 
+  const prefix = buf.slice(0, 3).toString('ascii');
+
+  // v20 = App-Bound Encryption (Chrome 127+). This uses a key stored inside Chrome's
+  // process and cannot be decrypted externally even with the DPAPI master key.
+  // Presence of a v20-prefixed non-expired session cookie IS proof of login
+  // (session cookies are cleared on logout; v20 is not a device fingerprint).
+  if (prefix === 'v20') return true;
+
+  // v10/v11: AES-256-GCM encrypted with DPAPI master key (Chrome 80–126)
   if (masterKey) {
     const decrypted = cookieDecrypt.decryptCookieValue(buf, masterKey);
     return decrypted !== null && decrypted.length > 0;
   }
 
-  // Fallback without decryption: check Chrome encryption prefix
-  // v10/v11 = AES-256-GCM (Chrome 80-126), v20 = App-Bound Encryption (Chrome 127+)
-  const prefix = buf.slice(0, 3).toString('ascii');
-  return prefix === 'v10' || prefix === 'v11' || prefix === 'v20';
+  // No master key — existence of v10/v11 prefix means cookie is present (likely logged in)
+  return prefix === 'v10' || prefix === 'v11';
 }
 
 // ── Main detection ────────────────────────────────────────
