@@ -806,75 +806,25 @@ async function runCookieDiagnostic() {
     return;
   }
 
-  // Header: cookie file + DPAPI status
-  const infoBar = document.createElement('div');
-  infoBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)';
   const fileOk = !!dbg.cookieFile;
   const dpOk = dbg.dpapiWorking;
-  const walOk = dbg.walExists;
-  const cdpOk = dbg.cdpAvailable;
-  infoBar.innerHTML = [
-    cdpOk
-      ? `🟢 <b style="color:var(--success)">CDP: Đã kết nối</b> <span style="color:var(--muted)">(port ${dbg.cdpPort}, ${dbg.cdpCookieCount} cookies)</span>`
-      : dbg.cdpPort
-        ? `🟡 <b style="color:var(--warning)">CDP: Lỗi kết nối</b> <span style="color:var(--muted)">${eh(dbg.cdpError||'')}</span>`
-        : `⚪ CDP: <span style="color:var(--muted)">Chrome chưa mở qua UP Media — mở profile bằng nút ▶ rồi thử lại</span>`,
-    `&nbsp;|&nbsp; 📁 Cookie DB: <b style="color:${fileOk ? 'var(--success)' : 'var(--danger)'}">${fileOk ? 'Tìm thấy' : 'KHÔNG TÌM THẤY'}</b>`,
-    fileOk ? `<span style="color:var(--muted)">(${eh(dbg.cookieFile.split(/[\\/]/).slice(-3).join('/'))})</span>` : '',
-    `&nbsp;|&nbsp; 🔐 DPAPI: <b style="color:${dpOk ? 'var(--success)' : 'var(--warning)'}">${dpOk ? 'Hoạt động ✓' : 'Không hoạt động'}</b>`,
-  ].join(' ');
-  content.appendChild(infoBar);
 
-  // Raw DB diagnostic — show table name + sample hosts to debug schema issues
+  // Minimal status bar — just DB health and DPAPI
   if (dbg.rawDiag) {
     const rd = dbg.rawDiag;
-    const rawBar = document.createElement('div');
-    rawBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:#1e293b;border-radius:6px;border:1px solid #334155;color:#94a3b8;font-family:monospace';
-    const lines = [];
-    // CDP status (most important — show first)
-    lines.push(`CDP port: <b style="color:${dbg.cdpPort ? '#4ade80' : '#f87171'}">${dbg.cdpPort ? dbg.cdpPort + ' (TCP OK)' : 'NOT FOUND'}</b>`);
-    if (dbg.cdpAvailable) lines.push(`CDP cookies: <b style="color:#4ade80">${dbg.cdpCookieCount}</b>`);
-    else if (dbg.cdpError) lines.push(`CDP error: <b style="color:#f87171">${eh(dbg.cdpError)}</b>`);
-    if (dbg.chromeDiag) {
-      const cd = dbg.chromeDiag;
-      if (cd.portsOpen && cd.portsOpen.length) lines.push(`<br>Open debug ports: <b style="color:#4ade80">${cd.portsOpen.join(', ')}</b>`);
-      else lines.push(`<br>Ports 9220-9230: <b style="color:#f87171">none open</b>`);
-      // Show full Chrome flags (with spaces preserved — split on ' --' boundaries)
-      if (cd.processes && cd.processes.length && cd.processes[0] !== '(no chrome.exe running)') {
-        lines.push(`Chrome flags: <b style="color:#cbd5e1">${cd.processes.map(eh).join(' ')}</b>`);
-      } else if (cd.rawCmdLine) {
-        lines.push(`Chrome cmd: <b style="color:#cbd5e1">${eh(cd.rawCmdLine.slice(0, 300))}</b>`);
-      } else {
-        lines.push(`<b style="color:#f87171">Chrome không chạy</b>`);
-      }
+    const statusBar = document.createElement('div');
+    statusBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:5px 8px;background:var(--bg);border-radius:6px;border:1px solid var(--border);color:var(--muted)';
+    const parts = [];
+    if (rd.sqliteMagic) {
+      parts.push(`📂 Cookie DB: <b style="color:var(--success)">OK</b> <span style="color:var(--muted)">(${rd.cookieCount ?? '?'} rows)</span>`);
+    } else if (rd.error) {
+      parts.push(`📂 Cookie DB: <b style="color:var(--danger)">Lỗi đọc file</b>`);
+    } else {
+      parts.push(`📂 Cookie DB: <b style="color:var(--warning)">Không đọc được</b>`);
     }
-    // File-level info
-    lines.push(`<br>stat size: <b style="color:#e2e8f0">${rd.statSize ?? '?'} bytes</b>`);
-    lines.push(`read size: <b style="color:${(rd.fileSize||0)>0 ? '#4ade80' : '#f87171'}">${rd.fileSize ?? '?'} bytes</b>`);
-    if (rd.psDiag) lines.push(`PS diag: <b style="color:#fbbf24">${eh(rd.psDiag)}</b>`);
-    if (rd.error && !rd.psDiag) lines.push(`⚠ Error: ${eh(rd.error)}`);
-    lines.push(`SQLite magic: <b style="color:${rd.sqliteMagic ? '#4ade80' : '#f87171'}">${rd.sqliteMagic ? 'OK' : 'INVALID - ' + eh((rd.magic||'').slice(0,12))}</b>`);
-    if (rd.networkFiles && rd.networkFiles.length) {
-      lines.push(`Network/ files: <b style="color:#cbd5e1">${rd.networkFiles.map(eh).join(', ')}</b>`);
-    }
-    // SQL-level info
-    if (rd.tables !== undefined) {
-      lines.push(`Tables: <b style="color:#e2e8f0">${(rd.tables||[]).map(eh).join(', ') || '(none)'}</b>`);
-      if (rd.cookieTable) lines.push(`Cookie table: <b style="color:#4ade80">${eh(rd.cookieTable)}</b> (${rd.cookieCount ?? '?'} rows)`);
-      else lines.push(`<b style="color:#f87171">No table with host_key found!</b>`);
-      if (rd.sampleHosts && rd.sampleHosts.length) {
-        lines.push(`Sample hosts: <b style="color:#e2e8f0">${rd.sampleHosts.slice(0,5).map(eh).join(', ')}</b>`);
-      }
-    }
-    if (rd.journalSize !== undefined) lines.push(`Cookies-journal: <b style="color:#fbbf24">${rd.journalSize}B</b>`);
-    if (rd.networkFiles && rd.networkFiles.length) {
-      lines.push(`<br>Network/: <span style="color:#94a3b8">${rd.networkFiles.map(eh).join(' | ')}</span>`);
-    }
-    if (rd.sqliteInProfile && rd.sqliteInProfile.length) {
-      lines.push(`<br>SQLite in profile/: <b style="color:#4ade80">${rd.sqliteInProfile.map(eh).join(' | ')}</b>`);
-    }
-    rawBar.innerHTML = lines.join('&nbsp;&nbsp;|&nbsp;&nbsp;');
-    content.appendChild(rawBar);
+    parts.push(`🔐 DPAPI: <b style="color:${dpOk ? 'var(--success)' : 'var(--muted)'}">${dpOk ? 'OK' : 'Không dùng'}</b>`);
+    statusBar.innerHTML = parts.join('&nbsp;&nbsp;|&nbsp;&nbsp;');
+    content.appendChild(statusBar);
   }
 
   // Per-site results

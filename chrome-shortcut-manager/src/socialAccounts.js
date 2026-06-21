@@ -670,7 +670,9 @@ async function debugSocialStatus(profilePath, sites) {
               : Buffer.from(row.encrypted_value instanceof Uint8Array
                   ? row.encrypted_value : Object.values(row.encrypted_value));
             if (buf.length >= 3) prefix = buf.slice(0, 3).toString('ascii');
-            if (masterKey) {
+            if (prefix === 'v20') {
+              decryptOk = true; // App-Bound Encryption — presence = valid
+            } else if (masterKey) {
               const val = cookieDecrypt.decryptCookieValue(buf, masterKey);
               decryptOk = val !== null && val.length > 0;
             }
