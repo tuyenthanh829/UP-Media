@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const cookieDecrypt = require('./cookieDecrypt');
+const chromeCdp = require('./chromeCdp');
 
 /**
  * Cookie detection strategy per site:
@@ -253,6 +254,15 @@ async function getSocialStatus(profilePath, sites) {
   // Derive User Data path from profile path (one level up)
   const userDataPath = path.dirname(profilePath);
 
+  // ── Primary: CDP (Chrome running with --remote-debugging-port) ──
+  // This is the most reliable method — Chrome decrypts cookies internally,
+  // no file lock issues, no encryption to bypass.
+  try {
+    const cdpResult = await chromeCdp.getSocialStatusViaCdp(userDataPath, sites);
+    if (cdpResult) return cdpResult;
+  } catch { /* fall through to SQLite */ }
+
+  // ── Fallback: SQLite cookie file (Chrome closed or no debug port) ──
   // Attempt DPAPI decryption — silent failure, falls back gracefully
   let masterKey = null;
   try { masterKey = cookieDecrypt.getChromeMasterKey(userDataPath); } catch { /* no DPAPI */ }
@@ -371,6 +381,15 @@ async function getCookiesForDomain(profilePath, domain) {
 async function debugSocialStatus(profilePath, sites) {
   const userDataPath = path.dirname(profilePath);
   const nowUs = nowChromeTime();
+
+  // ── Try CDP first ──────────────────────────────────────────
+  const cdpPort = chromeCdp.getCdpPort(userDataPath);
+  let cdpCookies = null;
+  let cdpError = null;
+  if (cdpPort) {
+    try { cdpCookies = await chromeCdp.getAllCookies(cdpPort); }
+    catch (e) { cdpError = String(e.message || e); }
+  }
 
   const cookieFile = [
     path.join(profilePath, 'Network', 'Cookies'),
@@ -520,13 +539,44 @@ async function debugSocialStatus(profilePath, sites) {
 
   const walExists = cookieFile ? fs.existsSync(cookieFile + '-wal') : false;
 
+  // Merge CDP results into siteDiag (CDP takes priority when available)
+  const mergedSites = {};
+  for (const site of sites) {
+    const sqliteDiag = siteDiag ? (siteDiag[site.id] || {}) : {};
+    if (cdpCookies) {
+      const domains     = site.domains || [site.domain];
+      const cookieNames = (site.cookieNames || [site.cookieName]).filter(Boolean);
+      const nowSec = Date.now() / 1000;
+      const cdpRows = cdpCookies.filter(c => {
+        if (!cookieNames.includes(c.name)) return false;
+        const host = (c.domain || '').replace(/^\./, '');
+        return domains.some(d => host === d || host.endsWith('.' + d) || d.endsWith('.' + host));
+      }).map(c => ({
+        name: c.name,
+        host: c.domain,
+        hasPlainValue: !!(c.value && c.value.length > 0),
+        prefix: 'cdp',
+        decryptOk: true,
+        expired: c.expires > 0 && c.expires < nowSec,
+        via: 'cdp',
+      }));
+      mergedSites[site.id] = { ...sqliteDiag, rows: cdpRows, via: 'cdp' };
+    } else {
+      mergedSites[site.id] = sqliteDiag;
+    }
+  }
+
   return {
     cookieFile,
     walExists,
     dpapiWorking: masterKey !== null,
     dpapiError,
+    cdpPort,
+    cdpAvailable: !!cdpCookies,
+    cdpError,
+    cdpCookieCount: cdpCookies ? cdpCookies.length : null,
     rawDiag: rawDiag || {},
-    sites: siteDiag || {},
+    sites: mergedSites,
   };
 }
 

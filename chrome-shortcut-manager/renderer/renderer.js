@@ -756,12 +756,16 @@ async function runCookieDiagnostic() {
   const fileOk = !!dbg.cookieFile;
   const dpOk = dbg.dpapiWorking;
   const walOk = dbg.walExists;
+  const cdpOk = dbg.cdpAvailable;
   infoBar.innerHTML = [
-    `📁 Cookie DB: <b style="color:${fileOk ? 'var(--success)' : 'var(--danger)'}">${fileOk ? 'Tìm thấy' : 'KHÔNG TÌM THẤY'}</b>`,
+    cdpOk
+      ? `🟢 <b style="color:var(--success)">CDP: Đã kết nối</b> <span style="color:var(--muted)">(port ${dbg.cdpPort}, ${dbg.cdpCookieCount} cookies)</span>`
+      : dbg.cdpPort
+        ? `🟡 <b style="color:var(--warning)">CDP: Lỗi kết nối</b> <span style="color:var(--muted)">${eh(dbg.cdpError||'')}</span>`
+        : `⚪ CDP: <span style="color:var(--muted)">Chrome chưa mở qua UP Media — mở profile bằng nút ▶ rồi thử lại</span>`,
+    `&nbsp;|&nbsp; 📁 Cookie DB: <b style="color:${fileOk ? 'var(--success)' : 'var(--danger)'}">${fileOk ? 'Tìm thấy' : 'KHÔNG TÌM THẤY'}</b>`,
     fileOk ? `<span style="color:var(--muted)">(${eh(dbg.cookieFile.split(/[\\/]/).slice(-3).join('/'))})</span>` : '',
-    `&nbsp;|&nbsp; 📋 WAL: <b style="color:${walOk ? 'var(--success)' : 'var(--muted)'}">${walOk ? 'Có (Chrome đang chạy)' : 'Không có'}</b>`,
     `&nbsp;|&nbsp; 🔐 DPAPI: <b style="color:${dpOk ? 'var(--success)' : 'var(--warning)'}">${dpOk ? 'Hoạt động ✓' : 'Không hoạt động'}</b>`,
-    dpOk ? '' : `<span style="color:var(--muted);font-size:10px">(dùng fallback prefix)</span>`,
   ].join(' ');
   content.appendChild(infoBar);
 

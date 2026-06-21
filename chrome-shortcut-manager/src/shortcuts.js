@@ -60,14 +60,21 @@ function openProfile(profileDirectory) {
   const chromePath = findChrome();
   if (!chromePath) throw new Error('CHROME_NOT_FOUND');
   const { spawn } = require('child_process');
-  spawn(chromePath, [`--profile-directory=${profileDirectory}`], { detached: true, stdio: 'ignore' }).unref();
+  spawn(chromePath, [
+    `--profile-directory=${profileDirectory}`,
+    '--remote-debugging-port=0',
+  ], { detached: true, stdio: 'ignore' }).unref();
 }
 
 function openProfileWithUrl(profileDirectory, url) {
   const chromePath = findChrome();
   if (!chromePath) throw new Error('CHROME_NOT_FOUND');
   const { spawn } = require('child_process');
-  spawn(chromePath, [`--profile-directory=${profileDirectory}`, url], { detached: true, stdio: 'ignore' }).unref();
+  spawn(chromePath, [
+    `--profile-directory=${profileDirectory}`,
+    '--remote-debugging-port=0',
+    url,
+  ], { detached: true, stdio: 'ignore' }).unref();
 }
 
 module.exports = { findChrome, createShortcut, deleteShortcut, shortcutExists, openProfile, openProfileWithUrl, getDesktopPath };
