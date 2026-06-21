@@ -150,15 +150,26 @@ function readFileBypassed(filePath) {
   try { return fs.readFileSync(filePath); } catch (e) {
     if (e.code !== 'EBUSY' && e.code !== 'EPERM' && e.code !== 'EACCES') throw e;
   }
-  // Fallback: PowerShell copy to temp
+  // Fallback: .NET FileStream with FileShare.ReadWrite|Delete bypasses SQLite lock
   const { spawnSync } = require('child_process');
   const tmp = path.join(os.tmpdir(), `upm_cookies_${Date.now()}.db`);
+  const psScript = `
+$src='${filePath.replace(/'/g, "''")}';
+$dst='${tmp.replace(/'/g, "''")}';
+$fs=[System.IO.File]::Open($src,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete);
+$out=[System.IO.File]::Create($dst);
+$fs.CopyTo($out);
+$fs.Close();$out.Close();
+Write-Output 'ok'
+`.trim();
   try {
     const r = spawnSync('powershell', [
-      '-NoProfile', '-NonInteractive', '-Command',
-      `Copy-Item -Path '${filePath}' -Destination '${tmp}' -Force`,
+      '-NoProfile', '-NonInteractive', '-Command', psScript,
     ], { timeout: 8000 });
-    if (r.status !== 0) throw new Error('PowerShell copy failed: ' + (r.stderr || ''));
+    const stdout = (r.stdout || '').toString().trim();
+    if (r.status !== 0 || stdout !== 'ok') {
+      throw new Error('PowerShell copy failed: ' + (r.stderr || r.stdout || ''));
+    }
     return fs.readFileSync(tmp);
   } finally {
     try { fs.unlinkSync(tmp); } catch { /* cleanup best-effort */ }
