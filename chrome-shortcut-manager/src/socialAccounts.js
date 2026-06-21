@@ -386,6 +386,8 @@ async function debugSocialStatus(profilePath, sites) {
   const cdpPort = chromeCdp.getCdpPort(userDataPath);
   let cdpCookies = null;
   let cdpError = null;
+  const cdpPortFile = path.join(userDataPath, 'DevToolsActivePort');
+  const cdpPortFileExists = fs.existsSync(cdpPortFile);
   if (cdpPort) {
     try { cdpCookies = await chromeCdp.getAllCookies(cdpPort); }
     catch (e) { cdpError = String(e.message || e); }
@@ -572,6 +574,8 @@ async function debugSocialStatus(profilePath, sites) {
     dpapiWorking: masterKey !== null,
     dpapiError,
     cdpPort,
+    cdpPortFileExists,
+    cdpPortFilePath: cdpPortFile,
     cdpAvailable: !!cdpCookies,
     cdpError,
     cdpCookieCount: cdpCookies ? cdpCookies.length : null,
