@@ -775,6 +775,13 @@ async function runCookieDiagnostic() {
     const rawBar = document.createElement('div');
     rawBar.style.cssText = 'font-size:11px;margin-bottom:8px;padding:6px 8px;background:#1e293b;border-radius:6px;border:1px solid #334155;color:#94a3b8;font-family:monospace';
     const lines = [];
+    // CDP status (most important — show first)
+    lines.push(`DevToolsActivePort: <b style="color:${dbg.cdpPortFileExists ? '#4ade80' : '#f87171'}">${dbg.cdpPortFileExists ? 'CÓ' : 'KHÔNG CÓ'}</b> <span style="color:#64748b">(${eh(dbg.cdpPortFilePath||'')})</span>`);
+    lines.push(`CDP port: <b style="color:${dbg.cdpPort ? '#4ade80' : '#f87171'}">${dbg.cdpPort || 'NOT FOUND'}</b>`);
+    if (dbg.cdpAvailable) lines.push(`CDP cookies: <b style="color:#4ade80">${dbg.cdpCookieCount}</b>`);
+    else if (dbg.cdpError) lines.push(`CDP error: <b style="color:#f87171">${eh(dbg.cdpError)}</b>`);
+    else if (!dbg.cdpPortFileExists) lines.push(`<b style="color:#f87171">Chrome chưa mở qua app — mở profile bằng ▶ rồi thử lại</b>`);
+    else lines.push(`CDP: <b style="color:#fbbf24">port found but connect failed</b>`);
     if (rd.error) {
       lines.push(`⚠ Error: ${eh(rd.error)}`);
     }
