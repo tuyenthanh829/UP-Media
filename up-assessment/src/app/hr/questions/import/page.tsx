@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { getUserRoles, hasRole } from '@/lib/permissions/roles'
 import { NotionSyncButton } from '@/components/hr/notion-sync-button'
 
@@ -34,7 +35,15 @@ export default async function QuestionImportPage() {
             Sync câu hỏi có trạng thái <strong>Published</strong> từ Notion Question Bank vào Supabase.
           </p>
         </div>
-        <NotionSyncButton />
+        <div className="flex gap-3">
+          <Link
+            href="/hr/questions/import/candidates"
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+          >
+            Review Import Candidates →
+          </Link>
+          <NotionSyncButton />
+        </div>
       </div>
 
       {/* How it works */}
