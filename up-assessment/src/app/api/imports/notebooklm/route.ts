@@ -18,9 +18,10 @@ const QuestionSchema = z.object({
 
 const ImportPayloadSchema = z.object({
   sourcePlatform: z.literal('notebooklm'),
-  sourceUrl: z.string().url().optional(),
+  sourceUrl: z.string().url().optional().or(z.literal('')),
   sourceTitle: z.string().optional(),
   parserVersion: z.string(),
+  courseCode: z.string().optional(),  // sent by Chrome Extension
   questions: z.array(QuestionSchema).min(1).max(100),
 })
 

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UP Assessment Importer</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <div class="header">
+      <img src="../../icons/icon48.png" alt="" class="logo" onerror="this.style.display='none'" />
+      <div>
+        <h1>UP Assessment</h1>
+        <p class="subtitle">NotebookLM Importer</p>
+      </div>
+      <button id="btn-settings" class="btn-icon" title="Cài đặt">⚙️</button>
+    </div>
+
+    <!-- Settings Panel (hidden by default) -->
+    <div id="panel-settings" class="panel hidden">
+      <h2>Cài đặt kết nối</h2>
+      <label>
+        API URL
+        <input id="input-api-url" type="url" placeholder="https://your-app.com" />
+      </label>
+      <label>
+        Auth Token
+        <input id="input-auth-token" type="password" placeholder="Paste token từ UP Assessment app" />
+      </label>
+      <p class="hint">
+        Lấy token tại: UP Assessment → Profile → Copy API Token
+      </p>
+      <div class="row">
+        <button id="btn-save-config" class="btn-primary">Lưu</button>
+        <button id="btn-cancel-settings" class="btn-ghost">Huỷ</button>
+      </div>
+      <div id="config-status"></div>
+    </div>
+
+    <!-- Main Panel -->
+    <div id="panel-main">
+
+      <!-- Source info -->
+      <div id="source-info" class="source-info hidden">
+        <span class="source-label">📄</span>
+        <span id="source-title">NotebookLM</span>
+      </div>
+
+      <!-- Scan controls -->
+      <div class="scan-row">
+        <button id="btn-scan-one" class="btn-primary">🔍 Scan câu hiện tại</button>
+        <button id="btn-scan-all" class="btn-secondary">📋 Scan tất cả</button>
+      </div>
+
+      <!-- Manual paste mode -->
+      <details class="manual-section">
+        <summary>✏️ Nhập thủ công (paste text)</summary>
+        <div class="manual-inner">
+          <textarea
+            id="input-manual-text"
+            placeholder="Paste nội dung quiz vào đây. Mỗi câu hỏi theo format:&#10;&#10;Câu hỏi?&#10;A. Đáp án A&#10;B. Đáp án B&#10;C. Đáp án C&#10;D. Đáp án D&#10;Đáp án đúng: B&#10;Giải thích: ..."
+            rows="8"
+          ></textarea>
+          <button id="btn-parse-manual" class="btn-secondary">Parse</button>
+        </div>
+      </details>
+
+      <!-- Preview area -->
+      <div id="preview-container" class="hidden">
+        <div class="preview-header">
+          <span id="preview-count"></span>
+          <div class="preview-actions">
+            <button id="btn-clear" class="btn-ghost btn-sm">Xoá</button>
+          </div>
+        </div>
+
+        <div id="question-list"></div>
+
+        <!-- Course selection -->
+        <div class="field-group">
+          <label for="input-course-code">Course Code <span class="required">*</span></label>
+          <input id="input-course-code" type="text" placeholder="VD: HR-3P-001" />
+        </div>
+
+        <!-- Submit -->
+        <button id="btn-submit" class="btn-primary btn-full">
+          📤 Import vào UP Assessment
+        </button>
+      </div>
+
+      <!-- Status messages -->
+      <div id="status-area"></div>
+
+    </div>
+
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
