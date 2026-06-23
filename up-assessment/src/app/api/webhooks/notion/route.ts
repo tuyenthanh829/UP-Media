@@ -14,12 +14,13 @@ import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoint
 const WEBHOOK_SECRET = process.env.NOTION_WEBHOOK_SECRET
 
 export async function POST(req: NextRequest) {
-  // Validate shared secret (query param ?secret=xxx)
-  if (WEBHOOK_SECRET) {
-    const secret = req.nextUrl.searchParams.get('secret')
-    if (secret !== WEBHOOK_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  // Always require the secret — return 401 if env var is missing or value doesn't match
+  if (!WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 401 })
+  }
+  const secret = req.nextUrl.searchParams.get('secret')
+  if (secret !== WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   let body: unknown
