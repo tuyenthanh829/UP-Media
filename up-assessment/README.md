@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# UP Assessment & KPI Platform
 
-## Getting Started
+Nền tảng kiểm tra và quản lý KPI nội bộ — Next.js 15 + Supabase PostgreSQL.
 
-First, run the development server:
+---
+
+## Setup
+
+### 1. Tạo Supabase project
+
+Vào [supabase.com](https://supabase.com) → New Project.
+
+### 2. Tạo `.env.local`
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Điền URL và keys từ Supabase Dashboard → Settings → API.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Chạy migrations (001 → 010 trước)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Vào Supabase Dashboard → SQL Editor, chạy từng file theo thứ tự:
 
-## Learn More
+```
+db/migrations/001_schemas_and_enums.sql
+db/migrations/002_app_schema.sql
+db/migrations/003_content_schema.sql
+db/migrations/004_assessment_schema.sql
+db/migrations/005_attempts_schema.sql
+db/migrations/006_results_schema.sql
+db/migrations/007_private_schema.sql
+db/migrations/008_secure_grading_rpc.sql
+db/migrations/009_rls_policies.sql
+db/migrations/010_views.sql
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Bật pg_cron ⚠️ TRƯỚC khi chạy migration 011
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Supabase Dashboard → **Integrations → Cron → Enable**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+> Nếu chạy `011` trước bước này sẽ lỗi `function cron.schedule() does not exist`.
 
-## Deploy on Vercel
+### 5. Chạy migration 011
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+db/migrations/011_deadline_jobs.sql
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 6. Chạy seed data
+
+```
+db/seeds/001_baseline.sql
+```
+
+### 7. Khởi động dev server
+
+```bash
+npm install
+npm run dev
+```
+
+---
+
+## Cấu trúc project
+
+```
+up-assessment/
+  db/
+    migrations/   # SQL migrations (chạy theo thứ tự)
+    seeds/        # Seed data cơ bản
+  src/
+    app/          # Next.js App Router pages & API routes
+    components/   # UI components (learner/manager/hr/kpi/shared)
+    lib/          # Supabase client, permissions, utils
+    modules/      # Business logic (auth, scoring, results, assessment)
+    types/        # TypeScript types aligned to DB schema
+```
+
+## Roles
+
+| Role | Mô tả |
+|---|---|
+| `learner` | Nhân viên tham gia bài kiểm tra |
+| `manager` | Xem kết quả nhân viên trực thuộc |
+| `content_reviewer` | Review và publish câu hỏi |
+| `hr_ld` | Quản lý đào tạo, xác nhận kết quả |
+| `kpi_admin` | Khóa kết quả KPI chính thức |
+| `director` | Phê duyệt cấp cao |
+| `system_admin` | Quản trị kỹ thuật |
+
+## Security notes
+
+- `is_correct` và answer keys **không bao giờ** được gửi về browser
+- Grading chạy hoàn toàn trong PostgreSQL RPC (`submit_and_grade_attempt`)
+- `SUPABASE_SERVICE_ROLE_KEY` chỉ dùng server-side (invite flow)
+- RLS enabled trên tất cả tables — frontend hiding không phải lớp bảo vệ duy nhất
