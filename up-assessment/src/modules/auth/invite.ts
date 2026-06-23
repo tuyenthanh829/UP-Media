@@ -60,12 +60,16 @@ export async function inviteEmployee(input: unknown) {
     })
 
   // Audit
-  await admin.rpc('log_audit_event', {
-    p_actor_user_id: user.id,
-    p_actor_role_snapshot: JSON.stringify(roles),
-    p_action_type: 'USER_INVITED',
-    p_entity_type: 'profile',
-    p_entity_id: authUser.user.id,
-    p_new_data: JSON.stringify({ email: validated.email, role: validated.roleCode }),
-  })
+  await admin
+    .schema('private')
+    .from('audit_events')
+    .insert({
+      actor_user_id:       user.id,
+      actor_role_snapshot: roles,
+      action_type:         'USER_INVITED',
+      entity_type:         'profile',
+      entity_id:           authUser.user.id,
+      new_data:            { email: validated.email, role: validated.roleCode },
+      occurred_at:         new Date().toISOString(),
+    })
 }

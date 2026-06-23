@@ -33,13 +33,17 @@ export async function confirmResult(resultId: string): Promise<void> {
     .eq('id', resultId)
 
   // Audit
-  await supabase.rpc('log_audit_event', {
-    p_actor_user_id: user.id,
-    p_actor_role_snapshot: JSON.stringify(roles),
-    p_action_type: 'RESULT_CONFIRMED',
-    p_entity_type: 'official_result',
-    p_entity_id: resultId,
-  })
+  await supabase
+    .schema('private')
+    .from('audit_events')
+    .insert({
+      actor_user_id:       user.id,
+      actor_role_snapshot: roles,
+      action_type:         'RESULT_CONFIRMED',
+      entity_type:         'official_result',
+      entity_id:           resultId,
+      occurred_at:         new Date().toISOString(),
+    })
 }
 
 export async function lockResult(resultId: string): Promise<void> {
@@ -80,11 +84,15 @@ export async function lockResult(resultId: string): Promise<void> {
     })
     .eq('id', resultId)
 
-  await supabase.rpc('log_audit_event', {
-    p_actor_user_id: user.id,
-    p_actor_role_snapshot: JSON.stringify(roles),
-    p_action_type: 'RESULT_LOCKED',
-    p_entity_type: 'official_result',
-    p_entity_id: resultId,
-  })
+  await supabase
+    .schema('private')
+    .from('audit_events')
+    .insert({
+      actor_user_id:       user.id,
+      actor_role_snapshot: roles,
+      action_type:         'RESULT_LOCKED',
+      entity_type:         'official_result',
+      entity_id:           resultId,
+      occurred_at:         new Date().toISOString(),
+    })
 }
