@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quiz Test Center</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Quiz Test Center</h1>
+        <p>Nhap TSV tu NotebookLM, cho nhan su lam bai co timer va luu ket qua.</p>
+      </div>
+      <nav class="tabs" aria-label="Main views">
+        <button class="tab-button active" data-view="admin" type="button">Tao de</button>
+        <button class="tab-button" data-view="test" type="button">Lam bai</button>
+        <button class="tab-button" data-view="results" type="button">Ket qua</button>
+      </nav>
+    </header>
+
+    <main class="layout">
+      <section id="adminView" class="view active-view">
+        <div class="section-head">
+          <h2>Tao bai test</h2>
+          <span id="quizCount" class="pill">0 de</span>
+        </div>
+
+        <form id="quizForm" class="panel">
+          <div class="form-grid">
+            <label class="field">
+              <span>Ten bai test</span>
+              <input id="quizTitleInput" type="text" placeholder="VD: Kiem tra NotebookLM Brand Guide" required>
+            </label>
+            <label class="field">
+              <span>Thoi gian lam bai</span>
+              <input id="durationInput" type="number" min="1" max="240" value="30" required>
+            </label>
+          </div>
+          <label class="field">
+            <span>TSV 12 cot</span>
+            <textarea id="tsvInput" rows="10" placeholder="Dan TSV tu extension vao day..." required></textarea>
+          </label>
+          <button class="primary-button" type="submit">Luu bai test</button>
+        </form>
+
+        <div class="section-head">
+          <h2>Danh sach de</h2>
+        </div>
+        <div id="quizList" class="list"></div>
+      </section>
+
+      <section id="testView" class="view">
+        <div id="startPanel" class="panel">
+          <div class="section-head compact">
+            <h2>Thong tin nguoi lam bai</h2>
+            <span id="selectedQuizInfo" class="pill">Chua chon de</span>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Bai test</span>
+              <select id="quizSelect"></select>
+            </label>
+            <label class="field">
+              <span>Ma nhan su</span>
+              <input id="participantCodeInput" type="text" placeholder="VD: HR001">
+            </label>
+          </div>
+          <label class="field">
+            <span>Ho ten</span>
+            <input id="participantNameInput" type="text" placeholder="Nhap ho ten" required>
+          </label>
+          <button id="startTestButton" class="primary-button" type="button">Bat dau lam bai</button>
+        </div>
+
+        <div id="testPanel" class="test-panel hidden">
+          <div class="sticky-status">
+            <div>
+              <strong id="runningQuizTitle">Bai test</strong>
+              <span id="answerProgress" class="muted">0/0 cau da chon</span>
+            </div>
+            <div id="timerBox" class="timer">00:00</div>
+          </div>
+          <form id="answerForm" class="question-stack"></form>
+          <button id="submitTestButton" class="primary-button submit-button" type="button">Nop bai</button>
+        </div>
+
+        <div id="scorePanel" class="panel hidden"></div>
+      </section>
+
+      <section id="resultsView" class="view">
+        <div class="section-head">
+          <h2>Ket qua</h2>
+          <div class="export-actions">
+            <a id="downloadResultsCsvLink" class="secondary-link" href="/api/results.csv" download="quiz-results.csv">Tai CSV</a>
+            <a id="downloadResultsExcelLink" class="secondary-link" href="/api/results.xls" download="quiz-results.xls">Tai Excel</a>
+          </div>
+        </div>
+        <div id="resultsList" class="list"></div>
+      </section>
+
+      <div id="statusArea" class="status-area" role="status" aria-live="polite"></div>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

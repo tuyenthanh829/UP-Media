@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>NotebookLM Sheet Exporter</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="header">
+        <div>
+          <h1>NotebookLM Sheet Exporter</h1>
+          <p id="sourceInfo" class="source-info">Dang kiem tra tab hien tai...</p>
+        </div>
+      </header>
+
+      <section class="controls" aria-label="Quet cau hoi">
+        <div class="button-row">
+          <button id="scanVisibleButton" class="secondary-button" type="button">Scan visible</button>
+          <button id="scanAllButton" class="primary-button" type="button">Auto scan all</button>
+        </div>
+      </section>
+
+      <section class="manual-panel" aria-label="Nhap thu cong">
+        <label class="field">
+          <span>Manual paste</span>
+          <textarea id="manualTextInput" rows="6" placeholder="1. Cau hoi?
+A. Dap an A
+B. Dap an B
+C. Dap an C
+D. Dap an D
+Dap an: A
+Giai thich: Ly do..."></textarea>
+        </label>
+        <button id="parseManualButton" class="secondary-button" type="button">Parse pasted text</button>
+      </section>
+
+      <section class="export-panel" aria-label="Xuat du lieu">
+        <div class="button-row">
+          <button id="downloadCsvButton" class="primary-button" type="button" disabled>Download CSV</button>
+          <button id="copyTsvButton" class="secondary-button" type="button" disabled>Copy TSV</button>
+        </div>
+        <button id="openSheetsButton" class="primary-button submit-button" type="button" disabled>
+          Copy & open Google Sheets
+        </button>
+      </section>
+
+      <section class="preview-section" aria-label="Danh sach cau hoi">
+        <div class="preview-header">
+          <h2>Question preview</h2>
+          <span id="questionCount" class="count-pill">0 cau hoi</span>
+        </div>
+        <div id="questionList" class="question-list"></div>
+      </section>
+
+      <div id="statusArea" class="status-area" role="status" aria-live="polite"></div>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

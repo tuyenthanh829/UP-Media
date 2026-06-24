@@ -1,0 +1,12 @@
+{
+  "name": "quiz-test-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Internal timed quiz test runner with TSV import and JSON result storage.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
