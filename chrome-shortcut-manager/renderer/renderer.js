@@ -11,6 +11,9 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.42', items: [
+    'Extension cookie: thêm ô textarea xem/sửa cookie, nút Lấy / Copy / Đăng nhập bằng cookie (nhập), khử trùng lặp cho chuỗi cookie chuẩn',
+  ] },
   { v: '1.8.41', items: [
     'Lấy cookie Facebook nay dùng extension độc lập: Cài đặt → "Xuất extension ra Desktop" → tự cài (load unpacked) → bấm icon để Copy cookie',
     'Sửa modal Cài đặt bị che nút phía dưới (thêm thanh cuộn)',

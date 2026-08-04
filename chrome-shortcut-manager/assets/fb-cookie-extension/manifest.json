@@ -1,13 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "UP Media - Lấy Cookie Facebook",
-  "version": "1.0.0",
-  "description": "Copy cookie Facebook (kể cả httpOnly như xs) — công cụ nội bộ UP Media.",
+  "name": "UP Media - Cookie Facebook",
+  "version": "1.1.0",
+  "description": "Lấy / Nhập cookie Facebook (kể cả httpOnly như xs) — công cụ nội bộ UP Media.",
   "permissions": ["cookies"],
   "host_permissions": ["*://*.facebook.com/*", "*://*.messenger.com/*"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Lấy cookie Facebook - UP Media"
-  },
-  "icons": {}
+    "default_title": "Cookie Facebook - UP Media"
+  }
 }
