@@ -44,6 +44,25 @@ function clearSearchInput() {
   if (el) el.value = '';
 }
 
+// ── Per-profile cache-size store (persisted, no auto-scan) ─
+const CACHE_SIZE_KEY = 'upm_cache_sizes';
+let _cacheSizeStore = null;
+function loadCacheSizeStore() {
+  if (_cacheSizeStore) return _cacheSizeStore;
+  try { _cacheSizeStore = JSON.parse(localStorage.getItem(CACHE_SIZE_KEY)) || {}; }
+  catch { _cacheSizeStore = {}; }
+  return _cacheSizeStore;
+}
+function getCacheSizeCache(dir) {
+  const v = loadCacheSizeStore()[dir];
+  return (v && typeof v.size === 'number') ? v.size : null;
+}
+function setCacheSizeCache(dir, size) {
+  const store = loadCacheSizeStore();
+  store[dir] = { size, at: Date.now() };
+  localStorage.setItem(CACHE_SIZE_KEY, JSON.stringify(store));
+}
+
 // ── Toast ─────────────────────────────────────────────────
 let _toastT;
 function showToast(msg, type='info') {
@@ -527,7 +546,8 @@ async function buildCard(profile) {
 
     <div class="cache-info">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-      Cache: <span class="cache-size loading">đang tính...</span>
+      Cache: <span class="cache-size"></span>
+      <button class="btn btn-ghost btn-xs btn-calc-cache" data-profile-path="${ea(profile.profilePath)}" title="Tính dung lượng cache">Tính</button>
       <button class="btn btn-ghost btn-xs btn-clear-cache" data-profile-path="${ea(profile.profilePath)}" title="Xóa cache">Xóa cache</button>
     </div>
 
@@ -567,17 +587,31 @@ async function buildCard(profile) {
   buildGroupTags(profile, card);
 
   const cacheSpan = card.querySelector('.cache-size');
-  window.app.getCacheSize(profile.profilePath).then(size => {
+  const renderCacheSize = (size) => {
     cacheSpan.textContent = fmtBytes(size);
     cacheSpan.classList.remove('loading');
-    if (size > 100 * 1024 * 1024) cacheSpan.style.color = 'var(--danger)';
+    cacheSpan.style.color = size > 100 * 1024 * 1024 ? 'var(--danger)' : '';
+  };
+  // Show last-known cached value instead of auto-scanning (avoids 50x disk scan on render)
+  const cached = getCacheSizeCache(profile.profileDirectory);
+  if (cached != null) renderCacheSize(cached);
+  else { cacheSpan.textContent = 'chưa tính'; cacheSpan.style.color = 'var(--muted)'; }
+
+  card.querySelector('.btn-calc-cache').addEventListener('click', async e => {
+    const pp = e.currentTarget.dataset.profilePath;
+    e.currentTarget.disabled = true;
+    cacheSpan.textContent = 'đang tính...'; cacheSpan.classList.add('loading'); cacheSpan.style.color = '';
+    const size = await window.app.getCacheSize(pp);
+    setCacheSizeCache(profile.profileDirectory, size);
+    renderCacheSize(size);
+    e.currentTarget.disabled = false;
   });
 
   card.querySelector('.btn-clear-cache').addEventListener('click', async e => {
     const pp = e.currentTarget.dataset.profilePath;
     e.currentTarget.disabled = true;
     const res = await window.app.clearCache(pp);
-    if (res.success) { cacheSpan.textContent='0 B'; cacheSpan.style.color=''; showToast(`Đã xóa ${res.freedText} cache`,'success'); }
+    if (res.success) { setCacheSizeCache(profile.profileDirectory, 0); cacheSpan.textContent='0 B'; cacheSpan.style.color=''; showToast(`Đã xóa ${res.freedText} cache`,'success'); }
     else showToast(res.error,'error');
     e.currentTarget.disabled = false;
   });
@@ -1128,6 +1162,8 @@ async function openStorageModal() {
   list.innerHTML = '';
 
   const sizes = await window.app.getAllCacheSizes();
+  // Persist so profile cards can display these without re-scanning
+  allProfiles.forEach(p => setCacheSizeCache(p.profileDirectory, sizes[p.profileDirectory]||0));
   let total = 0;
   const entries = allProfiles.map(p=>({p,size:sizes[p.profileDirectory]||0})).sort((a,b)=>b.size-a.size);
 
