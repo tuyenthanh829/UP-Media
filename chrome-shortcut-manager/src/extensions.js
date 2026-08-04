@@ -149,16 +149,27 @@ function resolveExtName(profilePath, id, manifest) {
   return name || short || id;
 }
 
+function readExtSettings(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  try {
+    const prefs = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return (prefs.extensions || {}).settings || {};
+  } catch { return {}; }
+}
+
 function listProfileExtensions(profilePath) {
-  const prefPath = path.join(profilePath, 'Preferences');
-  if (!fs.existsSync(prefPath)) return [];
-  let prefs;
-  try { prefs = JSON.parse(fs.readFileSync(prefPath, 'utf8')); } catch { return []; }
-  const settings = (prefs.extensions || {}).settings || {};
+  // Chrome hiện đại lưu extensions.settings trong "Secure Preferences";
+  // bản cũ có thể ở "Preferences". Gộp cả hai.
+  const settings = {
+    ...readExtSettings(path.join(profilePath, 'Preferences')),
+    ...readExtSettings(path.join(profilePath, 'Secure Preferences')),
+  };
+  if (!Object.keys(settings).length) return [];
   const out = [];
   for (const [id, s] of Object.entries(settings)) {
     if (!/^[a-p]{32}$/.test(id)) continue;   // chỉ nhận ID tiện ích hợp lệ (a-p, 32 ký tự)
     const manifest = s.manifest || {};
+    if (!manifest.version) continue;         // bỏ qua mục không phải tiện ích đã cài
     if (manifest.theme) continue;            // bỏ qua theme
     if (s.location === 5) continue;          // bỏ qua component (tích hợp sẵn Chrome)
     out.push({

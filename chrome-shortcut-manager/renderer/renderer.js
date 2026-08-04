@@ -10,6 +10,9 @@ let viewMode = localStorage.getItem('upm_view_mode') || 'grid'; // 'grid' | 'lis
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.34', items: [
+    'Sửa lỗi danh sách tiện ích luôn trống — nay đọc đúng cả "Secure Preferences"',
+  ] },
   { v: '1.8.33', items: [
     'Quản lý tiện ích: nút "Tiện ích" trên mỗi profile để xem danh sách tiện ích đang cài',
     'Nhân bản 1 tiện ích ra tất cả Chrome (qua chính sách ép cài)',
