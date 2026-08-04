@@ -3,6 +3,11 @@
   "name": "UP Media - Cookie Facebook",
   "version": "1.1.0",
   "description": "Lấy / Nhập cookie Facebook (kể cả httpOnly như xs) — công cụ nội bộ UP Media.",
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "permissions": ["cookies"],
   "host_permissions": ["*://*.facebook.com/*", "*://*.messenger.com/*"],
   "action": {

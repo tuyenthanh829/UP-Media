@@ -440,6 +440,14 @@ body{
 .settings-label{font-weight:600;font-size:14px}
 .settings-desc{font-size:12px;color:var(--muted);margin-top:2px}
 .settings-switch{width:20px;height:20px;accent-color:var(--upm-green);cursor:pointer;flex-shrink:0}
+.settings-actions{display:flex;gap:8px;flex-wrap:wrap}
+.cookie-store-guide{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card)}
+.cookie-store-guide summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--upm-green)}
+.cookie-store-guide ol{padding-left:20px;margin:8px 0;font-size:12px;line-height:1.5;color:var(--muted)}
+.cookie-store-url{font-family:monospace;font-size:11px;font-weight:600;color:var(--upm-green);word-break:break-all}
+.cookie-store-status{width:100%;padding:7px 10px;border-radius:8px;background:var(--upm-green-pale);color:var(--upm-green);font-size:12px;font-weight:600;word-break:break-all}
+.cookie-store-status.hidden,.settings-actions .hidden{display:none}
+.cookie-security-note{font-size:11px;line-height:1.45;color:var(--danger)}
 
 /* ── Changelog modal ─────────────────────────────────────── */
 .changelog-list{list-style:none;display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow-y:auto;padding-right:6px}

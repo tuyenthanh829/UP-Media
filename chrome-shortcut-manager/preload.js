@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('app', {
   setCookieExportEnabled: (enabled) => ipcRenderer.invoke('set-cookie-export-enabled', enabled),
   exportFacebookCookies: (dir) => ipcRenderer.invoke('export-facebook-cookies', dir),
   exportCookieExtension: () => ipcRenderer.invoke('export-cookie-extension'),
+  zipCookieExtension: () => ipcRenderer.invoke('zip-cookie-extension'),
+  saveCookieStoreId: (extId) => ipcRenderer.invoke('save-cookie-store-id', extId),
   exportData: () => ipcRenderer.invoke('export-data'),
   importData: () => ipcRenderer.invoke('import-data'),
   exportTemplate: () => ipcRenderer.invoke('export-template'),

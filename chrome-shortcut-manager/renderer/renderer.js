@@ -11,6 +11,9 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.45', items: [
+    'Cài extension Cookie Facebook cho tất cả Chrome bằng Web Store ID (ép cài, không cần Developer Mode)',
+  ] },
   { v: '1.8.42', items: [
     'Extension cookie: thêm ô textarea xem/sửa cookie, nút Lấy / Copy / Đăng nhập bằng cookie (nhập), khử trùng lặp cho chuỗi cookie chuẩn',
   ] },
@@ -1800,6 +1803,26 @@ document.getElementById('btn-view-grid').addEventListener('click', () => setView
 document.getElementById('btn-view-list').addEventListener('click', () => setViewMode('list'));
 
 // Settings modal
+async function refreshCookieStoreStatus(settings) {
+  const input = document.getElementById('setting-cookie-store-id');
+  const status = document.getElementById('cookie-store-status');
+  const removeBtn = document.getElementById('btn-remove-cookie-all');
+  const id = String(settings?.cookieStoreExtId || '').trim();
+  input.value = id;
+
+  if (!id) {
+    status.classList.add('hidden');
+    removeBtn.classList.add('hidden');
+    return;
+  }
+
+  const policy = await window.app.getExtPolicy();
+  const active = (policy.forcelist || []).includes(id);
+  status.textContent = active ? `Đang ép cài: ${id}` : `ID đã lưu (chưa ép cài): ${id}`;
+  status.classList.remove('hidden');
+  removeBtn.classList.toggle('hidden', !active);
+}
+
 function openSettingsModal() {
   const sel = document.getElementById('setting-default-profile');
   sel.innerHTML = '<option value="">— Không mở profile nào —</option>' +
@@ -1809,6 +1832,7 @@ function openSettingsModal() {
     }).join('');
   sel.value = localStorage.getItem('upm_default_open_profile') || '';
   window.app.getAutoLaunch().then(v => { document.getElementById('setting-auto-launch').checked = !!v; });
+  window.app.getSettings().then(refreshCookieStoreStatus).catch(() => {});
   document.getElementById('modal-settings').classList.remove('hidden');
 }
 function closeSettingsModal() { document.getElementById('modal-settings').classList.add('hidden'); }
@@ -1831,6 +1855,59 @@ document.getElementById('btn-export-cookie-ext').addEventListener('click', async
   const r = await window.app.exportCookieExtension();
   if (r.success) showToast('Đã xuất extension ra Desktop (thư mục "UP Media - FB Cookie Extension"). Vào chrome://extensions → bật Chế độ nhà phát triển → Tải tiện ích đã giải nén → chọn thư mục đó.','success');
   else showToast(r.error||'Không xuất được extension','error');
+});
+
+document.getElementById('btn-zip-cookie-ext').addEventListener('click', async () => {
+  const r = await window.app.zipCookieExtension();
+  if (r.success) showToast('Đã tạo fb-cookie-extension.zip trên Desktop để upload lên Chrome Web Store.','success');
+  else showToast(r.error || 'Không đóng gói được extension','error');
+});
+
+document.getElementById('btn-install-cookie-all').addEventListener('click', async () => {
+  const input = document.getElementById('setting-cookie-store-id');
+  const id = input.value.trim().toLowerCase();
+  if (!/^[a-p]{32}$/.test(id)) {
+    showToast('Extension ID phải gồm đúng 32 ký tự từ a đến p.','error');
+    input.focus();
+    return;
+  }
+
+  const btn = document.getElementById('btn-install-cookie-all');
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = 'Đang ép cài...';
+  try {
+    const result = await window.app.copyExtensionToAll(id);
+    if (!result.success || result.hkcuOk === false) {
+      showToast(result.error || 'Không ghi được registry — chạy phần mềm bằng Run as administrator.','error');
+      return;
+    }
+    const saved = await window.app.saveCookieStoreId(id);
+    if (!saved.success) {
+      showToast(saved.error || 'Policy đã ghi nhưng không lưu được Extension ID.','error');
+      return;
+    }
+    await refreshCookieStoreStatus({ cookieStoreExtId: id });
+    showToast('Đã ép cài cho tất cả Chrome (phạm vi: toàn máy/người dùng). ĐÓNG HẲN toàn bộ Chrome rồi mở lại để nhận.','success');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+});
+
+document.getElementById('btn-remove-cookie-all').addEventListener('click', async () => {
+  const id = document.getElementById('setting-cookie-store-id').value.trim().toLowerCase();
+  if (!/^[a-p]{32}$/.test(id)) {
+    showToast('Extension ID không hợp lệ.','error');
+    return;
+  }
+  const result = await window.app.clearExtPolicyEntry(id);
+  if (!result.success) {
+    showToast(result.error || 'Không gỡ được policy extension.','error');
+    return;
+  }
+  await refreshCookieStoreStatus({ cookieStoreExtId: id });
+  showToast('Đã gỡ policy cài Cookie Facebook. Đóng hẳn Chrome rồi mở lại để hoàn tất.','success');
 });
 
 document.getElementById('btn-template-data').addEventListener('click', async () => {

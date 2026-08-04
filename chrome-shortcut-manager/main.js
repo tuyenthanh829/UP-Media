@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const crypto = require('crypto');
 const XLSX = require('xlsx');
 
@@ -590,6 +590,40 @@ ipcMain.handle('export-cookie-extension', async () => {
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+// Đóng gói extension Cookie Facebook thành ZIP sẵn sàng upload lên Chrome Web Store.
+ipcMain.handle('zip-cookie-extension', async () => {
+  const srcDir = path.join(__dirname, 'assets', 'fb-cookie-extension');
+  const destZip = path.join(shortcuts.getDesktopPath(), 'fb-cookie-extension.zip');
+  const psQuote = value => `'${String(value).replace(/'/g, "''")}'`;
+  const command = [
+    `$src = ${psQuote(srcDir)}`,
+    `$dest = ${psQuote(destZip)}`,
+    "Compress-Archive -Path (Join-Path $src '*') -DestinationPath $dest -Force",
+  ].join('; ');
+
+  try {
+    await new Promise((resolve, reject) => {
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], (error, _stdout, stderr) => {
+        if (error) reject(new Error((stderr || error.message).trim()));
+        else resolve();
+      });
+    });
+    shell.showItemInFolder(destZip);
+    return { success: true, path: destZip };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('save-cookie-store-id', async (_, extId) => {
+  const id = String(extId || '').trim();
+  if (id && !/^[a-p]{32}$/.test(id)) {
+    return { success: false, error: 'Extension ID phải gồm 32 ký tự từ a đến p.' };
+  }
+  const success = configStore.saveSettings({ cookieStoreExtId: id });
+  return { success, error: success ? null : 'Không lưu được Extension ID.' };
 });
 
 // ── Xuất cookie Facebook qua localhost (opt-in) ───────────

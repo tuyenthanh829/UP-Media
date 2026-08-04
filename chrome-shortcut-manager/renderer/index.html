@@ -219,10 +219,32 @@
       </label>
       <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:8px">
         <div>
-          <div class="settings-label">Extension lấy Cookie Facebook</div>
-          <div class="settings-desc">Xuất extension ra Desktop → vào chrome://extensions bật "Chế độ nhà phát triển" → "Tải tiện ích đã giải nén" → chọn thư mục vừa xuất. Sau đó bấm icon extension trên Chrome để Copy cookie (kể cả httpOnly). Cookie ngang mật khẩu — dùng cẩn thận.</div>
+          <div class="settings-label">Extension Cookie Facebook qua Web Store</div>
+          <div class="settings-desc">Dùng bản Web Store Unlisted và policy Chrome để cài cho tất cả profile, không cần Developer Mode.</div>
         </div>
-        <button class="btn btn-purple btn-sm" id="btn-export-cookie-ext">📦 Xuất extension ra Desktop</button>
+        <div class="settings-actions">
+          <button class="btn btn-purple btn-sm" id="btn-zip-cookie-ext">📦 Đóng gói extension (.zip)</button>
+          <button class="btn btn-outline btn-sm" id="btn-export-cookie-ext">Xuất extension ra Desktop</button>
+        </div>
+        <details class="cookie-store-guide">
+          <summary>Hướng dẫn đăng Chrome Web Store (làm một lần)</summary>
+          <ol>
+            <li>Mở Chrome Web Store Developer Dashboard.</li>
+            <li>Đăng ký tài khoản nhà phát triển (phí 5 USD một lần).</li>
+            <li>Bấm “New item” và upload file <code>fb-cookie-extension.zip</code> trên Desktop.</li>
+            <li>Chọn Visibility là “Unlisted”; thêm mô tả, icon 128x128 và screenshot 1280x800.</li>
+            <li>Submit, chờ Google duyệt (thường 1–3 ngày), rồi sao chép Extension ID 32 ký tự.</li>
+            <li>Dán ID vào ô dưới đây, sau đó bấm cài cho tất cả Chrome.</li>
+          </ol>
+          <div class="cookie-store-url">chrome.google.com/webstore/devconsole</div>
+        </details>
+        <input id="setting-cookie-store-id" class="form-input" style="width:100%" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Extension ID (32 ký tự a–p)" />
+        <div class="settings-actions">
+          <button class="btn btn-primary btn-sm" id="btn-install-cookie-all">Cài cookie cho tất cả Chrome</button>
+          <button class="btn btn-outline btn-sm hidden" id="btn-remove-cookie-all">Gỡ cookie khỏi tất cả Chrome</button>
+        </div>
+        <div id="cookie-store-status" class="cookie-store-status hidden"></div>
+        <div class="cookie-security-note"><strong>Lưu ý bảo mật:</strong> Cookie có giá trị như mật khẩu. Chỉ dùng extension cho tài khoản của chính agency; nhập cookie sang máy hoặc IP khác có thể khiến Facebook checkpoint.</div>
       </div>
       <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:8px">
         <div>
