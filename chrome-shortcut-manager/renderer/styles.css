@@ -122,6 +122,9 @@ body{
 .sidebar-section{display:flex;flex-direction:column}
 #sidebar-groups-section{flex:1 1 auto;min-height:120px;overflow-y:auto;border-bottom:2px solid var(--border);padding-bottom:4px}
 #sidebar-login-section{flex-shrink:0;padding-bottom:8px}
+.sidebar-cache-section{flex-shrink:0;padding:10px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:5px}
+.sidebar-cache-btn{width:100%;justify-content:center;gap:6px;font-size:12px}
+.social-cache-info{font-size:10px;color:var(--muted);text-align:center}
 .sidebar-title{
   font-size:10px;font-weight:700;letter-spacing:.08em;
   color:var(--upm-green);text-transform:uppercase;

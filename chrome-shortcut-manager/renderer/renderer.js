@@ -27,6 +27,23 @@ function avatarLetter(name) { return (name || '?').charAt(0).toUpperCase(); }
 function eh(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function ea(s) { return String(s||'').replace(/"/g,'&quot;'); }
 
+// Normalize for search: remove diacritics, lowercase, collapse spaces/special chars
+function normalizeSearch(s) {
+  return String(s||'')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // strip combining diacritical marks
+    .replace(/đ/gi, 'd')             // Vietnamese đ not covered by NFD
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, ' ')      // replace special chars/spaces with space
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function clearSearchInput() {
+  const el = document.getElementById('search-input');
+  if (el) el.value = '';
+}
+
 // ── Toast ─────────────────────────────────────────────────
 let _toastT;
 function showToast(msg, type='info') {
@@ -89,7 +106,7 @@ function renderSidebar() {
   const allEl = document.createElement('div');
   allEl.className = `sidebar-item${!activeSidebarFilter ? ' active' : ''}`;
   allEl.innerHTML = `<span>Tất cả</span><span class="sidebar-count">${allProfiles.length}</span>`;
-  allEl.addEventListener('click', () => { activeSidebarFilter = null; renderSidebar(); applyFilter(); });
+  allEl.addEventListener('click', () => { activeSidebarFilter = null; clearSearchInput(); renderSidebar(); applyFilter(); });
   sg.appendChild(allEl);
 
   allGroups.forEach(g => {
@@ -104,7 +121,7 @@ function renderSidebar() {
       <span style="flex:1"></span>
       <span class="sidebar-count">${cnt}</span>
     `;
-    gEl.addEventListener('click', () => { activeSidebarFilter = { type:'group', group:g }; renderSidebar(); applyFilter(); });
+    gEl.addEventListener('click', () => { activeSidebarFilter = { type:'group', group:g }; clearSearchInput(); renderSidebar(); applyFilter(); });
     sg.appendChild(gEl);
 
     if (subs.length) {
@@ -119,7 +136,7 @@ function renderSidebar() {
         sEl.addEventListener('click', e => {
           e.stopPropagation();
           activeSidebarFilter = { type:'sub', group:g, sub };
-          renderSidebar(); applyFilter();
+          clearSearchInput(); renderSidebar(); applyFilter();
         });
         subWrap.appendChild(sEl);
       });
@@ -138,7 +155,7 @@ function renderSidebar() {
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
     <span>Có Gmail</span><span class="sidebar-count">${gmailCnt}</span>
   `;
-  gmailEl.addEventListener('click', () => { activeSidebarFilter={type:'login',loginType:'gmail'}; renderSidebar(); applyFilter(); });
+  gmailEl.addEventListener('click', () => { activeSidebarFilter={type:'login',loginType:'gmail'}; clearSearchInput(); renderSidebar(); applyFilter(); });
   sl.appendChild(gmailEl);
 
   const socialCnt = countHasSocial();
@@ -151,7 +168,7 @@ function renderSidebar() {
   `;
   socialEl.addEventListener('click', async () => {
     activeSidebarFilter = { type:'login', loginType:'social' };
-    renderSidebar();
+    clearSearchInput(); renderSidebar();
     const needed = allProfiles.filter(p => !profileSocialCache[p.profileDirectory]);
     if (needed.length) {
       const batch = needed.map(p => ({ dir: p.profileDirectory, profilePath: p.profilePath }));
@@ -180,7 +197,7 @@ function renderSidebar() {
       siteEl.addEventListener('click', e => {
         e.stopPropagation();
         activeSidebarFilter = { type:'login', loginType:'social-site', siteId: site.id };
-        renderSidebar(); applyFilter();
+        clearSearchInput(); renderSidebar(); applyFilter();
       });
       siteSubWrap.appendChild(siteEl);
     });
@@ -190,7 +207,8 @@ function renderSidebar() {
 
 // ── Filter ────────────────────────────────────────────────
 function applyFilter() {
-  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const rawQ = document.getElementById('search-input').value;
+  const q = normalizeSearch(rawQ);
   const f = activeSidebarFilter;
 
   const filtered = allProfiles.filter(p => {
@@ -216,7 +234,7 @@ function applyFilter() {
       ...(p.groups||[]), p.email, p.notes,
       ...(p.googleAccounts||[]).map(a=>a.email),
       ...(p.googleAccounts||[]).map(a=>a.fullName),
-    ].some(v => (v||'').toLowerCase().includes(q));
+    ].some(v => normalizeSearch(v).includes(q));
 
     return matchSidebar && matchQ;
   });
@@ -224,9 +242,30 @@ function applyFilter() {
   renderProfiles(filtered);
 }
 
-// ── Background social scan after profile scan ─────────────
+// ── Social cache management ───────────────────────────────
+const SOCIAL_CACHE_KEY = 'upm_social_cache_time';
+const SOCIAL_CACHE_7D  = 7 * 24 * 60 * 60 * 1000;
+
+function getSocialCacheTime() {
+  const v = localStorage.getItem(SOCIAL_CACHE_KEY);
+  return v ? parseInt(v, 10) : null;
+}
+
+function saveSocialCacheTime() {
+  localStorage.setItem(SOCIAL_CACHE_KEY, Date.now().toString());
+  updateSocialCacheUI();
+}
+
+function updateSocialCacheUI() {
+  const ts = getSocialCacheTime();
+  const info = document.getElementById('social-cache-info');
+  if (info) info.textContent = ts ? `Lần cuối: ${fmtTime(ts)}` : 'Chưa load';
+}
+
 async function backgroundScanSocial() {
   if (!socialSitesConfig.length) return;
+  const btn = document.getElementById('btn-load-social-cache');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang load...'; }
   const batch = allProfiles.map(p => ({ dir: p.profileDirectory, profilePath: p.profilePath }));
   try {
     const results = await window.app.getSocialStatusBatch(batch, socialSitesConfig);
@@ -234,7 +273,10 @@ async function backgroundScanSocial() {
     updateSocialBadgesAll();
     updateSocialStats();
     renderSidebar();
+    saveSocialCacheTime();
+    showToast('Đã load xong Social Cache', 'success');
   } catch { /* ignore */ }
+  if (btn) { btn.disabled = false; btn.textContent = 'Load Social Cache'; }
 }
 
 function updateSocialBadgesAll() {
@@ -1012,8 +1054,6 @@ async function scanProfiles() {
     updateStats(allProfiles); renderSidebar();
     showState('grid'); applyFilter();
     showToast(`Tìm thấy ${allProfiles.length} profile Chrome`,'success');
-    // Background social scan
-    backgroundScanSocial();
   } catch (err) {
     showState('empty');
     const isNF = err.message&&err.message.includes('NOT_FOUND_USER_DATA');
@@ -1454,6 +1494,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   allGroups = groups; allGroupSubs = subs; socialSitesConfig = sites;
   const verEl = document.getElementById('app-version');
   if (verEl && version) verEl.textContent = `v${version}`;
+
+  document.getElementById('btn-load-social-cache').addEventListener('click', backgroundScanSocial);
+  updateSocialCacheUI();
+
   renderSidebar();
-  scanProfiles();
+  await scanProfiles();
+
+  // Auto-load social cache every 7 days
+  const lastTime = getSocialCacheTime();
+  if (!lastTime || Date.now() - lastTime > SOCIAL_CACHE_7D) {
+    backgroundScanSocial();
+  }
 });
