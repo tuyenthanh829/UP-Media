@@ -27,7 +27,7 @@ const POLICY_PATHS = [
 ];
 
 function runCmd(cmd) {
-  return new Promise(resolve => exec(cmd, () => resolve()));
+  return new Promise(resolve => exec(cmd, (err, stdout, stderr) => resolve({ err, stdout: stdout || '', stderr: stderr || '' })));
 }
 
 async function removeFromRegistryAsync() {
@@ -269,7 +269,7 @@ async function applyExtensionPolicy(forcelist, blocklist) {
   }
   await Promise.all(add);
 
-  // Ghi thêm file policy JSON managed (dự phòng)
+  // Ghi thêm file policy JSON managed (dự phòng, cần quyền admin)
   const policyDirs = [
     path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Google', 'Chrome', 'policies', 'managed'),
   ];
@@ -283,6 +283,20 @@ async function applyExtensionPolicy(forcelist, blocklist) {
       fs.writeFileSync(path.join(dir, 'upmedia_extensions.json'), content, 'utf8');
     } catch {}
   }
+
+  // Kiểm chứng: đọc lại registry xem policy đã ghi thành công chưa
+  const verify = { hkcu: '', hklm: '' };
+  await Promise.all([
+    new Promise(r => exec('reg query "HKCU\\SOFTWARE\\Policies\\Google\\Chrome\\ExtensionInstallForcelist"', (e, o) => { verify.hkcu = o || ''; r(); })),
+    new Promise(r => exec('reg query "HKLM\\SOFTWARE\\Policies\\Google\\Chrome\\ExtensionInstallForcelist"', (e, o) => { verify.hklm = o || ''; r(); })),
+  ]);
+  const idsInReg = forcelist.filter(id => verify.hkcu.includes(id) || verify.hklm.includes(id));
+  return {
+    hkcuOk: /ExtensionInstallForcelist/i.test(verify.hkcu),
+    hklmOk: /ExtensionInstallForcelist/i.test(verify.hklm),
+    idsWritten: idsInReg,
+    allWritten: forcelist.length === 0 || idsInReg.length === forcelist.length,
+  };
 }
 
 module.exports = {

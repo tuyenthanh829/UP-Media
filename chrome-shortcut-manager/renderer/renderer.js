@@ -10,6 +10,9 @@ let viewMode = localStorage.getItem('upm_view_mode') || 'grid'; // 'grid' | 'lis
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.35', items: [
+    'Nhân bản tiện ích: tự kiểm chứng policy đã ghi vào registry + báo rõ phạm vi và cách nhận tiện ích',
+  ] },
   { v: '1.8.34', items: [
     'Sửa lỗi danh sách tiện ích luôn trống — nay đọc đúng cả "Secure Preferences"',
   ] },
@@ -1211,8 +1214,10 @@ async function openExtensionsModal(profile, profilePath) {
       btn.disabled = true; btn.textContent = 'Đang áp dụng...';
       const r = await window.app.copyExtensionToAll(ext.id);
       btn.textContent = 'Nhân bản ra tất cả'; btn.disabled = false;
-      if (r.success) showToast(`Đã đặt "${ext.name}" ép cài lên tất cả Chrome. Mở lại Chrome để nhận tiện ích.`,'success');
-      else showToast(r.error||'Không áp dụng được','error');
+      if (r.success) {
+        const scope = r.hklmOk ? 'toàn máy' : 'người dùng hiện tại';
+        showToast(`Đã ép cài "${ext.name}" (${scope}). ĐÓNG HẲN toàn bộ Chrome (kể cả ở khay đồng hồ) rồi mở lại để nhận. Máy cần có mạng.`,'success');
+      } else showToast(r.error||'Không áp dụng được','error');
     });
 
     li.querySelector('.btn-ext-del').addEventListener('click', async ev => {

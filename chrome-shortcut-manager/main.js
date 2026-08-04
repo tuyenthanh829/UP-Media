@@ -316,8 +316,13 @@ ipcMain.handle('copy-extension-to-all', async (_, extId) => {
   pol.blocklist = pol.blocklist.filter(id => id !== extId);
   if (!pol.forcelist.includes(extId)) pol.forcelist.push(extId);
   configStore.saveExtPolicy(pol);
-  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
-  return { success: true };
+  const verify = await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+  const written = (verify.idsWritten || []).includes(extId);
+  return {
+    success: written,
+    hkcuOk: verify.hkcuOk, hklmOk: verify.hklmOk,
+    error: written ? null : 'Không ghi được policy vào registry. Thử chạy phần mềm bằng quyền Administrator.',
+  };
 });
 
 // Danh sách chính sách hiện tại (để UI hiển thị / gỡ)
