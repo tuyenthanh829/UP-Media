@@ -163,6 +163,10 @@
         <strong>Nhân bản ra tất cả</strong>: ép cài tiện ích này lên mọi Chrome (cần tiện ích có trên Web Store + máy có mạng, áp dụng ở lần mở Chrome kế tiếp).<br>
         <strong>Xóa khỏi tất cả</strong>: gỡ tiện ích khỏi mọi profile và chặn tự cài lại. App sẽ đóng Chrome trước khi xóa.
       </p>
+      <div id="ext-blocked-wrap" style="display:none;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Đang bị chặn (do phần mềm)</div>
+        <ul id="ext-blocked" class="ext-list"></ul>
+      </div>
       <div id="ext-loading" style="text-align:center;padding:20px;color:var(--muted)">
         <div class="spinner-sm"></div> Đang đọc tiện ích...
       </div>
@@ -221,6 +225,16 @@
           <option value="">— Không mở profile nào —</option>
         </select>
       </div>
+      <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:14px">
+        <div>
+          <div class="settings-label">Xuất / Nhập dữ liệu</div>
+          <div class="settings-desc">Xuất thông tin cấu hình các Chrome (tên, nhóm, ghi chú) ra file; nhập file để tự tạo Chrome mới theo cấu hình đó</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" id="btn-export-data">⬇ Xuất dữ liệu</button>
+          <button class="btn btn-primary btn-sm" id="btn-import-data">⬆ Nhập dữ liệu</button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-success" id="btn-save-settings">Lưu cài đặt</button>
@@ -258,7 +272,7 @@
     </div>
     <div>
       <h1 class="app-title">Chrome Manager <span class="brand">by UP Media</span> <span id="app-version" title="Xem lịch sử phiên bản" style="font-size:13px;font-weight:400;color:rgba(255,255,255,.7);letter-spacing:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px"></span></h1>
-      <p class="app-subtitle">Giải pháp tổng thể về truyền thông thương hiệu</p>
+      <p class="app-subtitle">Mar Ket Tinh Gọn</p>
     </div>
   </div>
   <div class="header-stats">

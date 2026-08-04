@@ -281,6 +281,19 @@ ipcMain.handle('list-profile-extensions', async (_, profilePath) => {
   catch (err) { return { success: false, error: err.message, items: [] }; }
 });
 
+// Đếm số tiện ích của tất cả profile (cho chế độ hàng tinh gọn)
+ipcMain.handle('count-all-extensions', async () => {
+  const config = configStore.getConfig();
+  const customPath = config.settings?.chromeUserDataPath || null;
+  const { profiles } = chromeProfiles.scanProfiles(customPath);
+  const result = {};
+  for (const p of profiles) {
+    try { result[p.profileDirectory] = extensions.listProfileExtensions(p.profilePath).length; }
+    catch { result[p.profileDirectory] = 0; }
+  }
+  return result;
+});
+
 // 3. Xóa 1 tiện ích khỏi TẤT CẢ profile + chặn tự cài lại (kể cả hàng chờ)
 ipcMain.handle('delete-extension-everywhere', async (_, extId) => {
   if (!/^[a-p]{32}$/.test(extId || '')) return { success: false, error: 'ID tiện ích không hợp lệ' };
@@ -334,6 +347,102 @@ ipcMain.handle('clear-ext-policy-entry', async (_, extId) => {
   configStore.saveExtPolicy(pol);
   await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
   return { success: true };
+});
+
+// ── Export / Import dữ liệu cấu hình profile ──────────────
+ipcMain.handle('export-data', async () => {
+  const config = configStore.getConfig();
+  const { profiles } = chromeProfiles.scanProfiles(config.settings?.chromeUserDataPath || null);
+  const profileData = profiles.map(p => {
+    const saved = config.profiles?.[p.profileDirectory] || {};
+    return {
+      profileDirectory: p.profileDirectory,
+      shortcutName: saved.shortcutName || p.chromeProfileName || p.profileDirectory,
+      groups: saved.groups || [],
+      subGroups: saved.subGroups || {},
+      notes: saved.notes || '',
+    };
+  });
+  const payload = {
+    app: 'Chrome Manager by UP Media',
+    version: app.getVersion(),
+    exportedAt: new Date().toISOString(),
+    groups: configStore.getGroups(),
+    groupSubs: configStore.getGroupSubs(),
+    profiles: profileData,
+  };
+
+  const res = await dialog.showSaveDialog(mainWindow, {
+    title: 'Xuất dữ liệu cấu hình',
+    defaultPath: `upmedia-chrome-export-${new Date().toISOString().slice(0,10)}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePath) return { success: false, cancelled: true };
+  try {
+    fs.writeFileSync(res.filePath, JSON.stringify(payload, null, 2), 'utf8');
+    return { success: true, path: res.filePath, count: profileData.length };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Import: nhập file → tự tạo Chrome profile mới cho từng mục
+ipcMain.handle('import-data', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Nhập dữ liệu cấu hình',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePaths.length) return { success: false, cancelled: true };
+
+  let payload;
+  try { payload = JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8')); }
+  catch { return { success: false, error: 'File không hợp lệ hoặc hỏng.' }; }
+  if (!Array.isArray(payload.profiles)) return { success: false, error: 'File không chứa dữ liệu profile.' };
+
+  // Gộp nhóm & danh mục con từ file vào cấu hình hiện tại
+  if (Array.isArray(payload.groups)) {
+    const merged = Array.from(new Set([...(configStore.getGroups()||[]), ...payload.groups]));
+    configStore.saveGroups(merged);
+  }
+  if (payload.groupSubs && typeof payload.groupSubs === 'object') {
+    const cur = configStore.getGroupSubs() || {};
+    for (const [g, subs] of Object.entries(payload.groupSubs)) {
+      cur[g] = Array.from(new Set([...(cur[g]||[]), ...(subs||[])]));
+    }
+    configStore.saveGroupSubs(cur);
+  }
+
+  const config = configStore.getConfig();
+  const { userDataPath } = chromeProfiles.scanProfiles(config.settings?.chromeUserDataPath || null);
+
+  // Tính chỉ số Profile kế tiếp, tự tăng để tránh trùng
+  let nextIdx = 0;
+  try {
+    for (const e of fs.readdirSync(userDataPath)) {
+      const m = e.match(/^Profile (\d+)$/);
+      if (m) nextIdx = Math.max(nextIdx, parseInt(m[1]));
+    }
+  } catch {}
+
+  let created = 0, failed = 0;
+  for (const item of payload.profiles) {
+    nextIdx++;
+    const newDir = `Profile ${nextIdx}`;
+    const saveData = {};
+    if (item.shortcutName) saveData.shortcutName = item.shortcutName;
+    if (Array.isArray(item.groups) && item.groups.length) saveData.groups = item.groups;
+    if (item.subGroups && Object.keys(item.subGroups).length) saveData.subGroups = item.subGroups;
+    if (item.notes) saveData.notes = item.notes;
+    try {
+      if (Object.keys(saveData).length) configStore.saveProfileConfig(newDir, saveData);
+      shortcuts.openProfile(newDir, userDataPath);   // Chrome khởi tạo thư mục profile
+      created++;
+      await new Promise(r => setTimeout(r, 600));     // giãn cách để Chrome kịp tạo profile
+    } catch { failed++; }
+  }
+
+  return { success: true, created, failed, total: payload.profiles.length };
 });
 
 // Bật/tắt khởi động cùng Windows

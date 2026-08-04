@@ -397,7 +397,7 @@ body{
 /* ── Compact list view ───────────────────────────────────── */
 .profile-list{display:flex;flex-direction:column;gap:4px}
 .profile-row{
-  display:grid;grid-template-columns:minmax(200px,2.2fr) minmax(120px,1.6fr) 90px 70px 80px 70px;
+  display:grid;grid-template-columns:minmax(180px,2.2fr) minmax(110px,1.5fr) 82px 66px 76px 74px 66px;
   align-items:center;gap:10px;
   background:var(--card);border:1px solid var(--border);border-left:3px solid var(--upm-green);
   border-radius:8px;padding:8px 12px;box-shadow:var(--shadow);transition:box-shadow .15s
@@ -413,7 +413,7 @@ body{
 .row-dir{font-size:10px;color:var(--muted);flex-shrink:0}
 .row-unnamed-dot{width:7px;height:7px;border-radius:50%;background:var(--warning);flex-shrink:0}
 .row-groups{display:flex;flex-wrap:wrap;gap:3px;overflow:hidden}
-.row-social,.row-mail{text-align:center}
+.row-social,.row-mail,.row-ext{text-align:center}
 .row-opens{text-align:center;font-weight:700;color:var(--upm-green);font-size:13px}
 .row-head .row-opens{color:var(--muted);font-weight:700}
 .row-act{text-align:right}

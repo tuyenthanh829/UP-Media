@@ -7,9 +7,16 @@ let profileSocialCache = {}; // { dir: { siteId: {loggedIn,name} } }
 let currentFiltered = [];
 let activeSidebarFilter = null; // { type, group?, sub?, loginType? }
 let viewMode = localStorage.getItem('upm_view_mode') || 'grid'; // 'grid' | 'list'
+let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế độ hàng
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.36', items: [
+    'Bỏ chặn tiện ích đang bị phần mềm chặn (mục Tiện ích)',
+    'Chế độ hàng tinh gọn: hiển thị số tiện ích đang cài của mỗi profile',
+    'Xuất / Nhập dữ liệu: xuất cấu hình Chrome ra file, nhập file để tự tạo Chrome mới',
+    'Đổi khẩu hiệu header thành "Mar Ket Tinh Gọn"',
+  ] },
   { v: '1.8.35', items: [
     'Nhân bản tiện ích: tự kiểm chứng policy đã ghi vào registry + báo rõ phạm vi và cách nhận tiện ích',
   ] },
@@ -1181,6 +1188,44 @@ async function openHistoryModal(profile, profilePath) {
 function closeHistoryModal() { document.getElementById('modal-history').classList.add('hidden'); }
 
 // ── Extensions modal ──────────────────────────────────────
+const KNOWN_EXT_NAMES = {
+  fheoggkfdfchfphceeifdbepaooicaho: 'McAfee WebAdvisor',
+  ngpampappnmepgilojfohadhhmbhlaek: 'IDM Integration Module',
+  aioifelanmcjnlailbmjfmgclhepmjbo: 'IDM CC',
+  hdokiejnpimakedhajhdlcegeplioahd: 'McAfee (biến thể)',
+  lifbcibllhkdhoafpjfnlhfpfgnpldfl: 'IDM (biến thể)',
+};
+
+// Hiển thị danh sách tiện ích đang bị chặn + nút bỏ chặn
+async function renderBlockedExtensions() {
+  const wrap = document.getElementById('ext-blocked-wrap');
+  const ul = document.getElementById('ext-blocked');
+  const pol = await window.app.getExtPolicy();
+  const blocked = pol.blocklist || [];
+  if (!blocked.length) { wrap.style.display = 'none'; ul.innerHTML = ''; return; }
+  wrap.style.display = '';
+  ul.innerHTML = '';
+  blocked.forEach(id => {
+    const li = document.createElement('li');
+    li.className = 'ext-item';
+    li.innerHTML = `
+      <div class="ext-info">
+        <div class="ext-name">${eh(KNOWN_EXT_NAMES[id] || 'Tiện ích')}</div>
+        <div class="ext-meta"><span class="ext-id">${eh(id)}</span></div>
+      </div>
+      <div class="ext-actions">
+        <button class="btn btn-success btn-xs btn-ext-unblock">Bỏ chặn</button>
+      </div>`;
+    li.querySelector('.btn-ext-unblock').addEventListener('click', async ev => {
+      const btn = ev.currentTarget; btn.disabled = true; btn.textContent = 'Đang bỏ...';
+      const r = await window.app.clearExtPolicyEntry(id);
+      if (r.success) { showToast('Đã bỏ chặn tiện ích. Có thể cài lại bình thường.','success'); renderBlockedExtensions(); }
+      else { btn.disabled=false; btn.textContent='Bỏ chặn'; showToast('Không bỏ chặn được','error'); }
+    });
+    ul.appendChild(li);
+  });
+}
+
 let _extModalProfile = null;
 async function openExtensionsModal(profile, profilePath) {
   _extModalProfile = { profile, profilePath };
@@ -1188,6 +1233,7 @@ async function openExtensionsModal(profile, profilePath) {
   document.getElementById('modal-extensions').classList.remove('hidden');
   document.getElementById('ext-loading').style.display = '';
   document.getElementById('ext-list').innerHTML = '';
+  renderBlockedExtensions();
 
   const res = await window.app.listProfileExtensions(profilePath);
   document.getElementById('ext-loading').style.display = 'none';
@@ -1257,6 +1303,9 @@ async function renderProfiles(profiles) {
   }
 
   if (viewMode === 'list') {
+    if (extCountCache === null) {
+      try { extCountCache = await window.app.countAllExtensions(); } catch { extCountCache = {}; }
+    }
     const header = document.createElement('div');
     header.className = 'profile-row row-head';
     header.innerHTML = `
@@ -1264,6 +1313,7 @@ async function renderProfiles(profiles) {
       <span class="row-groups">Phân loại</span>
       <span class="row-social">Social</span>
       <span class="row-mail">Mail</span>
+      <span class="row-ext" title="Số tiện ích đang cài">Tiện ích</span>
       <span class="row-opens" title="Số lần mở Chrome">Lượt mở</span>
       <span class="row-act"></span>`;
     grid.appendChild(header);
@@ -1284,6 +1334,7 @@ function buildRow(profile) {
   const sc = profileSocialCache[profile.profileDirectory];
   const socialCount = sc ? Object.values(sc).filter(s=>s.loggedIn).length : null;
   const opens = getOpenCount(profile.profileDirectory);
+  const extCount = extCountCache ? (extCountCache[profile.profileDirectory] ?? '–') : '–';
 
   const groupTags = (profile.groups || []).map(g =>
     `<span class="group-tag gc-${groupClass(g)}" style="padding:1px 7px;font-size:10px">${eh(g)}</span>`
@@ -1307,6 +1358,7 @@ function buildRow(profile) {
     <span class="row-groups">${groupTags}</span>
     <span class="row-social">${socialHtml}</span>
     <span class="row-mail">${mailHtml}</span>
+    <span class="row-ext">${extCount === 0 ? '<span class="row-chip muted">0</span>' : `<span class="row-chip on">🧩 ${extCount}</span>`}</span>
     <span class="row-opens">${opens}</span>
     <span class="row-act"><span class="row-open-hint">▶ Mở Chrome</span></span>`;
 
@@ -1331,6 +1383,7 @@ async function scanProfiles() {
     const result = await window.app.scanProfiles();
     allProfiles = result.profiles;
     profileSocialCache = {};
+    extCountCache = null;   // buộc tải lại số tiện ích sau khi quét
     updateStats(allProfiles); renderSidebar();
     showState('grid'); applyFilter();
     showToast(`Tìm thấy ${allProfiles.length} profile Chrome`,'success');
@@ -1753,6 +1806,25 @@ document.getElementById('modal-settings-close').addEventListener('click', closeS
 document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
 document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
 document.getElementById('modal-settings').addEventListener('click', e => { if(e.target===e.currentTarget) closeSettingsModal(); });
+
+document.getElementById('btn-export-data').addEventListener('click', async () => {
+  const r = await window.app.exportData();
+  if (r.cancelled) return;
+  if (r.success) showToast(`Đã xuất ${r.count} profile ra file`,'success');
+  else showToast(r.error||'Không xuất được','error');
+});
+document.getElementById('btn-import-data').addEventListener('click', async () => {
+  if (!confirm('Nhập dữ liệu sẽ TỰ TẠO các Chrome profile mới theo cấu hình trong file.\nChrome sẽ lần lượt mở ra để khởi tạo từng profile. Tiếp tục?')) return;
+  const btn = document.getElementById('btn-import-data');
+  btn.disabled = true; btn.textContent = 'Đang nhập...';
+  const r = await window.app.importData();
+  btn.disabled = false; btn.textContent = '⬆ Nhập dữ liệu';
+  if (r.cancelled) return;
+  if (r.success) {
+    showToast(`Đã tạo ${r.created}/${r.total} Chrome mới${r.failed?`, lỗi ${r.failed}`:''}. Bấm "Quét lại" để cập nhật danh sách.`,'success');
+    closeSettingsModal();
+  } else showToast(r.error||'Không nhập được','error');
+});
 
 // Changelog modal
 function openChangelogModal() {
