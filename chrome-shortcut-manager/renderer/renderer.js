@@ -11,6 +11,9 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.37', items: [
+    'Xuất / Nhập dữ liệu chuyển sang Excel (.xlsx) thay cho JSON — dễ sửa hàng loạt',
+  ] },
   { v: '1.8.36', items: [
     'Bỏ chặn tiện ích đang bị phần mềm chặn (mục Tiện ích)',
     'Chế độ hàng tinh gọn: hiển thị số tiện ích đang cài của mỗi profile',
@@ -1810,15 +1813,15 @@ document.getElementById('modal-settings').addEventListener('click', e => { if(e.
 document.getElementById('btn-export-data').addEventListener('click', async () => {
   const r = await window.app.exportData();
   if (r.cancelled) return;
-  if (r.success) showToast(`Đã xuất ${r.count} profile ra file`,'success');
+  if (r.success) showToast(`Đã xuất ${r.count} profile ra Excel`,'success');
   else showToast(r.error||'Không xuất được','error');
 });
 document.getElementById('btn-import-data').addEventListener('click', async () => {
-  if (!confirm('Nhập dữ liệu sẽ TỰ TẠO các Chrome profile mới theo cấu hình trong file.\nChrome sẽ lần lượt mở ra để khởi tạo từng profile. Tiếp tục?')) return;
+  if (!confirm('Nhập Excel sẽ TỰ TẠO các Chrome profile mới theo từng dòng.\nChrome sẽ lần lượt mở ra để khởi tạo từng profile. Tiếp tục?')) return;
   const btn = document.getElementById('btn-import-data');
   btn.disabled = true; btn.textContent = 'Đang nhập...';
   const r = await window.app.importData();
-  btn.disabled = false; btn.textContent = '⬆ Nhập dữ liệu';
+  btn.disabled = false; btn.textContent = '⬆ Nhập Excel';
   if (r.cancelled) return;
   if (r.success) {
     showToast(`Đã tạo ${r.created}/${r.total} Chrome mới${r.failed?`, lỗi ${r.failed}`:''}. Bấm "Quét lại" để cập nhật danh sách.`,'success');
