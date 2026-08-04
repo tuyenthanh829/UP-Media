@@ -7,6 +7,7 @@ const chromeProfiles = require('./src/chromeProfiles');
 const shortcuts = require('./src/shortcuts');
 const configStore = require('./src/configStore');
 const storage = require('./src/storage');
+const extensions = require('./src/extensions');
 const history = require('./src/history');
 const accounts = require('./src/accounts');
 const social = require('./src/socialAccounts');
@@ -271,6 +272,63 @@ ipcMain.handle('clear-all-cache', async () => {
     catch { errorCount++; }
   }
   return { success: true, freed: totalFreed, freedText: storage.formatBytes(totalFreed), errorCount };
+});
+
+// ── Quản lý tiện ích ──────────────────────────────────────
+// 1. Liệt kê tiện ích của 1 profile
+ipcMain.handle('list-profile-extensions', async (_, profilePath) => {
+  try { return { success: true, items: extensions.listProfileExtensions(profilePath) }; }
+  catch (err) { return { success: false, error: err.message, items: [] }; }
+});
+
+// 3. Xóa 1 tiện ích khỏi TẤT CẢ profile + chặn tự cài lại (kể cả hàng chờ)
+ipcMain.handle('delete-extension-everywhere', async (_, extId) => {
+  if (!/^[a-p]{32}$/.test(extId || '')) return { success: false, error: 'ID tiện ích không hợp lệ' };
+  // Đóng Chrome để mở khóa Preferences trước khi sửa
+  await new Promise(resolve => { exec('taskkill /F /IM chrome.exe /T', () => resolve()); });
+  await new Promise(r => setTimeout(r, 800));
+
+  const config = configStore.getConfig();
+  const customPath = config.settings?.chromeUserDataPath || null;
+  const { profiles } = chromeProfiles.scanProfiles(customPath);
+  let totalRemoved = 0, profilesAffected = 0;
+  for (const p of profiles) {
+    const { removed } = extensions.removeExtensionIdsFromProfile(p.profilePath, [extId]);
+    if (removed > 0) { totalRemoved += removed; profilesAffected++; }
+  }
+
+  await extensions.removeQueueForIds([extId]);
+
+  // Cập nhật chính sách: bỏ khỏi forcelist, thêm vào blocklist
+  const pol = configStore.getExtPolicy();
+  pol.forcelist = pol.forcelist.filter(id => id !== extId);
+  if (!pol.blocklist.includes(extId)) pol.blocklist.push(extId);
+  configStore.saveExtPolicy(pol);
+  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+
+  return { success: true, totalRemoved, profilesAffected };
+});
+
+// 2B. Nhân bản 1 tiện ích ra TẤT CẢ Chrome qua chính sách force-install
+ipcMain.handle('copy-extension-to-all', async (_, extId) => {
+  if (!/^[a-p]{32}$/.test(extId || '')) return { success: false, error: 'ID tiện ích không hợp lệ' };
+  const pol = configStore.getExtPolicy();
+  pol.blocklist = pol.blocklist.filter(id => id !== extId);
+  if (!pol.forcelist.includes(extId)) pol.forcelist.push(extId);
+  configStore.saveExtPolicy(pol);
+  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+  return { success: true };
+});
+
+// Danh sách chính sách hiện tại (để UI hiển thị / gỡ)
+ipcMain.handle('get-ext-policy', async () => configStore.getExtPolicy());
+ipcMain.handle('clear-ext-policy-entry', async (_, extId) => {
+  const pol = configStore.getExtPolicy();
+  pol.forcelist = pol.forcelist.filter(id => id !== extId);
+  pol.blocklist = pol.blocklist.filter(id => id !== extId);
+  configStore.saveExtPolicy(pol);
+  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+  return { success: true };
 });
 
 // Bật/tắt khởi động cùng Windows

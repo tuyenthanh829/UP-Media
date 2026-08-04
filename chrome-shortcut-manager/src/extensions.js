@@ -122,4 +122,160 @@ function removeExtensionsFromProfile(profilePath) {
   return { removed };
 }
 
-module.exports = { removeExtensionsFromProfile, removeFromRegistryAsync, EXEMPT_NAMES, REMOVE_IDS };
+// ── Liệt kê tiện ích của 1 profile ────────────────────────
+// Giải mã tên dạng __MSG_xxx__ từ _locales
+function resolveExtName(profilePath, id, manifest) {
+  const name = (manifest && manifest.name) || '';
+  const short = (manifest && manifest.short_name) || '';
+  if (/^__MSG_/.test(name)) {
+    const key = name.replace(/^__MSG_/, '').replace(/__$/, '');
+    const defLocale = (manifest.default_locale) || 'en';
+    try {
+      const extDir = path.join(profilePath, 'Extensions', id);
+      const versions = fs.readdirSync(extDir).filter(v => !v.startsWith('.'));
+      for (const v of versions) {
+        for (const loc of [defLocale, 'en', 'vi']) {
+          const msgPath = path.join(extDir, v, '_locales', loc, 'messages.json');
+          if (fs.existsSync(msgPath)) {
+            const msgs = JSON.parse(fs.readFileSync(msgPath, 'utf8'));
+            const entry = msgs[key] || msgs[key.toLowerCase()];
+            if (entry && entry.message) return entry.message;
+          }
+        }
+      }
+    } catch {}
+    return short || id;
+  }
+  return name || short || id;
+}
+
+function listProfileExtensions(profilePath) {
+  const prefPath = path.join(profilePath, 'Preferences');
+  if (!fs.existsSync(prefPath)) return [];
+  let prefs;
+  try { prefs = JSON.parse(fs.readFileSync(prefPath, 'utf8')); } catch { return []; }
+  const settings = (prefs.extensions || {}).settings || {};
+  const out = [];
+  for (const [id, s] of Object.entries(settings)) {
+    if (!/^[a-p]{32}$/.test(id)) continue;   // chỉ nhận ID tiện ích hợp lệ (a-p, 32 ký tự)
+    const manifest = s.manifest || {};
+    if (manifest.theme) continue;            // bỏ qua theme
+    if (s.location === 5) continue;          // bỏ qua component (tích hợp sẵn Chrome)
+    out.push({
+      id,
+      name: resolveExtName(profilePath, id, manifest),
+      version: manifest.version || '',
+      enabled: s.state === 1,
+      fromWebstore: !!s.from_webstore,
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+// ── Xóa tiện ích theo danh sách ID (tổng quát) ────────────
+function cleanPreferencesIds(prefPath, ids) {
+  if (!fs.existsSync(prefPath)) return 0;
+  let prefs;
+  try { prefs = JSON.parse(fs.readFileSync(prefPath, 'utf8')); } catch { return 0; }
+  let removed = 0;
+  const ext = prefs.extensions || {};
+  const settings = ext.settings || {};
+  for (const id of ids) {
+    if (settings[id]) { delete settings[id]; removed++; }
+    if (Array.isArray(ext.pinned_extensions)) {
+      const i = ext.pinned_extensions.indexOf(id);
+      if (i !== -1) ext.pinned_extensions.splice(i, 1);
+    }
+    if (ext.install_signature && ext.install_signature.ids) {
+      ext.install_signature.ids = ext.install_signature.ids.filter(x => x !== id);
+    }
+  }
+  if (removed > 0) { try { fs.writeFileSync(prefPath, JSON.stringify(prefs), 'utf8'); } catch { return 0; } }
+  return removed;
+}
+
+function removeExtensionIdsFromProfile(profilePath, ids) {
+  let removed = cleanPreferencesIds(path.join(profilePath, 'Preferences'), ids);
+  cleanPreferencesIds(path.join(profilePath, 'Secure Preferences'), ids);
+  for (const id of ids) {
+    const extDir = path.join(profilePath, 'Extensions', id);
+    if (fs.existsSync(extDir)) {
+      try { fs.rmSync(extDir, { recursive: true, force: true }); removed++; } catch {}
+    }
+  }
+  return { removed };
+}
+
+// Dọn hàng chờ tự cài (registry + External Extensions) cho các ID bất kỳ
+async function removeQueueForIds(ids) {
+  const tasks = [];
+  for (const regBase of REGISTRY_PATHS) {
+    for (const id of ids) tasks.push(runCmd(`reg delete "${regBase}\\${id}" /f 2>nul`));
+  }
+  await Promise.all(tasks);
+  const externalExtDirs = [
+    path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Google', 'Chrome', 'Extensions'),
+    path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google', 'Chrome', 'Extensions'),
+    path.join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'External Extensions'),
+  ];
+  for (const dir of externalExtDirs) {
+    for (const id of ids) {
+      const jsonFile = path.join(dir, `${id}.json`);
+      try { if (fs.existsSync(jsonFile)) fs.unlinkSync(jsonFile); } catch {}
+    }
+  }
+}
+
+// ── Áp dụng chính sách force-install / block cho toàn máy ──
+const WEBSTORE_UPDATE = 'https://clients2.google.com/service/update2/crx';
+const POLICY_ROOTS = [
+  'HKLM\\SOFTWARE\\Policies\\Google\\Chrome',
+  'HKLM\\SOFTWARE\\WOW6432Node\\Policies\\Google\\Chrome',
+  'HKCU\\SOFTWARE\\Policies\\Google\\Chrome',   // HKCU không cần quyền admin
+];
+
+async function applyExtensionPolicy(forcelist, blocklist) {
+  const wipe = [];
+  for (const root of POLICY_ROOTS) {
+    wipe.push(runCmd(`reg delete "${root}\\ExtensionInstallForcelist" /f 2>nul`));
+    wipe.push(runCmd(`reg delete "${root}\\ExtensionInstallBlocklist" /f 2>nul`));
+  }
+  await Promise.all(wipe);
+
+  const add = [];
+  for (const root of POLICY_ROOTS) {
+    if (forcelist.length) {
+      add.push(runCmd(`reg add "${root}\\ExtensionInstallForcelist" /f 2>nul`));
+      forcelist.forEach((id, i) => add.push(runCmd(
+        `reg add "${root}\\ExtensionInstallForcelist" /v "${i + 1}" /t REG_SZ /d "${id};${WEBSTORE_UPDATE}" /f 2>nul`)));
+    }
+    if (blocklist.length) {
+      add.push(runCmd(`reg add "${root}\\ExtensionInstallBlocklist" /f 2>nul`));
+      blocklist.forEach((id, i) => add.push(runCmd(
+        `reg add "${root}\\ExtensionInstallBlocklist" /v "${i + 1}" /t REG_SZ /d "${id}" /f 2>nul`)));
+    }
+  }
+  await Promise.all(add);
+
+  // Ghi thêm file policy JSON managed (dự phòng)
+  const policyDirs = [
+    path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Google', 'Chrome', 'policies', 'managed'),
+  ];
+  const content = JSON.stringify({
+    ExtensionInstallForcelist: forcelist.map(id => `${id};${WEBSTORE_UPDATE}`),
+    ExtensionInstallBlocklist: blocklist,
+  }, null, 2);
+  for (const dir of policyDirs) {
+    try {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'upmedia_extensions.json'), content, 'utf8');
+    } catch {}
+  }
+}
+
+module.exports = {
+  removeExtensionsFromProfile, removeFromRegistryAsync, EXEMPT_NAMES, REMOVE_IDS,
+  listProfileExtensions, removeExtensionIdsFromProfile, removeQueueForIds,
+  applyExtensionPolicy, WEBSTORE_UPDATE,
+};

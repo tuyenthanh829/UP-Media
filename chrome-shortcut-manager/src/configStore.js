@@ -79,6 +79,20 @@ function saveGroupSubs(groupSubs) {
   return save(config);
 }
 
+// Trạng thái chính sách tiện ích do UP Media quản lý (cumulative)
+function getExtPolicy() {
+  const p = load().extPolicy || {};
+  return { forcelist: p.forcelist || [], blocklist: p.blocklist || [] };
+}
+function saveExtPolicy(policy) {
+  const config = load();
+  config.extPolicy = {
+    forcelist: Array.from(new Set(policy.forcelist || [])),
+    blocklist: Array.from(new Set(policy.blocklist || [])),
+  };
+  return save(config);
+}
+
 function getSocialSites() { return load().socialSites || null; }
 function saveSocialSites(sites) {
   const config = load();
@@ -114,6 +128,7 @@ module.exports = {
   getGroups, saveGroups,
   getGroupSubs, saveGroupSubs,
   getSocialSites, saveSocialSites,
+  getExtPolicy, saveExtPolicy,
   renameGroupInProfiles,
   getConfig,
   DEFAULT_GROUPS

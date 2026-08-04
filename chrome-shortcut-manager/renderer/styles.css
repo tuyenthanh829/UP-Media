@@ -425,6 +425,16 @@ body{
 .row-chip.on{background:var(--upm-green-pale);color:var(--upm-green)}
 .row-chip.muted{background:var(--border);color:var(--muted)}
 
+/* ── Extensions modal ────────────────────────────────────── */
+.ext-list{list-style:none;display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto}
+.ext-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card)}
+.ext-info{overflow:hidden}
+.ext-name{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ext-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.ext-id{font-family:monospace;font-size:10px}
+.ext-off{color:var(--danger);font-weight:500}
+.ext-actions{display:flex;gap:6px;flex-shrink:0}
+
 /* ── Settings modal ──────────────────────────────────────── */
 .settings-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .settings-label{font-weight:600;font-size:14px}

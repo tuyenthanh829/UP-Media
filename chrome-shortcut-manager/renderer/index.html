@@ -151,6 +151,29 @@
   </div>
 </div>
 
+<!-- Modal: Tiện ích của profile -->
+<div id="modal-extensions" class="modal-overlay hidden">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>Tiện ích — <span id="ext-profile-name"></span></h2>
+      <button class="modal-close" id="modal-extensions-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        <strong>Nhân bản ra tất cả</strong>: ép cài tiện ích này lên mọi Chrome (cần tiện ích có trên Web Store + máy có mạng, áp dụng ở lần mở Chrome kế tiếp).<br>
+        <strong>Xóa khỏi tất cả</strong>: gỡ tiện ích khỏi mọi profile và chặn tự cài lại. App sẽ đóng Chrome trước khi xóa.
+      </p>
+      <div id="ext-loading" style="text-align:center;padding:20px;color:var(--muted)">
+        <div class="spinner-sm"></div> Đang đọc tiện ích...
+      </div>
+      <ul id="ext-list" class="ext-list"></ul>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="btn-close-extensions">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Tối ưu dung lượng -->
 <div id="modal-storage" class="modal-overlay hidden">
   <div class="modal modal-md">

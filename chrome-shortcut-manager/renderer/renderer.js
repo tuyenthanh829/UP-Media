@@ -10,6 +10,11 @@ let viewMode = localStorage.getItem('upm_view_mode') || 'grid'; // 'grid' | 'lis
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.33', items: [
+    'Quản lý tiện ích: nút "Tiện ích" trên mỗi profile để xem danh sách tiện ích đang cài',
+    'Nhân bản 1 tiện ích ra tất cả Chrome (qua chính sách ép cài)',
+    'Xóa 1 tiện ích khỏi tất cả Chrome + chặn tự cài lại (kể cả hàng chờ)',
+  ] },
   { v: '1.8.32', items: [
     'Bảng Lịch sử phiên bản có thanh cuộn khi dài',
     'Nút "Load Social Cache" nay cập nhật đúng cả chế độ thẻ lẫn hàng + báo profile bị khóa',
@@ -670,6 +675,10 @@ async function buildCard(profile) {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Lịch sử
       </button>
+      <button class="btn btn-outline btn-sm btn-extensions" data-dir="${ea(profile.profileDirectory)}" data-path="${ea(profile.profilePath)}" title="Xem & quản lý tiện ích">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg>
+        Tiện ích
+      </button>
       <button class="btn btn-success btn-icon btn-create" data-dir="${ea(profile.profileDirectory)}" title="Tạo shortcut Desktop">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M12 7v6M9 10h6"/></svg>
       </button>
@@ -772,6 +781,13 @@ async function buildCard(profile) {
     const pPath = e.currentTarget.dataset.path;
     const p = allProfiles.find(x=>x.profileDirectory===dir);
     openHistoryModal(p, pPath);
+  });
+
+  card.querySelector('.btn-extensions').addEventListener('click', async e => {
+    const dir = e.currentTarget.dataset.dir;
+    const pPath = e.currentTarget.dataset.path;
+    const p = allProfiles.find(x=>x.profileDirectory===dir);
+    openExtensionsModal(p, pPath);
   });
 
   card.querySelector('.btn-create').addEventListener('click', async e => {
@@ -1157,6 +1173,60 @@ async function openHistoryModal(profile, profilePath) {
 }
 
 function closeHistoryModal() { document.getElementById('modal-history').classList.add('hidden'); }
+
+// ── Extensions modal ──────────────────────────────────────
+let _extModalProfile = null;
+async function openExtensionsModal(profile, profilePath) {
+  _extModalProfile = { profile, profilePath };
+  document.getElementById('ext-profile-name').textContent = profile.shortcutName||profile.chromeProfileName||profile.profileDirectory;
+  document.getElementById('modal-extensions').classList.remove('hidden');
+  document.getElementById('ext-loading').style.display = '';
+  document.getElementById('ext-list').innerHTML = '';
+
+  const res = await window.app.listProfileExtensions(profilePath);
+  document.getElementById('ext-loading').style.display = 'none';
+  const list = document.getElementById('ext-list');
+
+  if (!res.success) { list.innerHTML = `<li style="padding:16px;text-align:center;color:var(--muted)">${eh(res.error||'Lỗi đọc tiện ích')}</li>`; return; }
+  if (!res.items.length) { list.innerHTML = '<li style="padding:16px;text-align:center;color:var(--muted)">Profile này chưa cài tiện ích nào</li>'; return; }
+
+  res.items.forEach(ext => {
+    const li = document.createElement('li');
+    li.className = 'ext-item';
+    li.innerHTML = `
+      <div class="ext-info">
+        <div class="ext-name">${eh(ext.name)} ${ext.enabled?'':'<span class="ext-off">(đang tắt)</span>'}</div>
+        <div class="ext-meta">v${eh(ext.version)} · <span class="ext-id">${eh(ext.id)}</span>${ext.fromWebstore?'':' · <span class="ext-off">ngoài Web Store</span>'}</div>
+      </div>
+      <div class="ext-actions">
+        <button class="btn btn-outline btn-xs btn-ext-copy" ${ext.fromWebstore?'':'disabled title="Chỉ nhân bản được tiện ích có trên Web Store"'}>Nhân bản ra tất cả</button>
+        <button class="btn btn-danger btn-xs btn-ext-del">Xóa khỏi tất cả</button>
+      </div>`;
+
+    li.querySelector('.btn-ext-copy').addEventListener('click', async ev => {
+      const btn = ev.currentTarget;
+      btn.disabled = true; btn.textContent = 'Đang áp dụng...';
+      const r = await window.app.copyExtensionToAll(ext.id);
+      btn.textContent = 'Nhân bản ra tất cả'; btn.disabled = false;
+      if (r.success) showToast(`Đã đặt "${ext.name}" ép cài lên tất cả Chrome. Mở lại Chrome để nhận tiện ích.`,'success');
+      else showToast(r.error||'Không áp dụng được','error');
+    });
+
+    li.querySelector('.btn-ext-del').addEventListener('click', async ev => {
+      if (!confirm(`Xóa tiện ích "${ext.name}" khỏi TẤT CẢ Chrome và chặn cài lại?\n\nApp sẽ đóng toàn bộ Chrome trước khi xóa.`)) return;
+      const btn = ev.currentTarget;
+      btn.disabled = true; btn.textContent = 'Đang xóa...';
+      const r = await window.app.deleteExtensionEverywhere(ext.id);
+      if (r.success) {
+        showToast(`Đã xóa "${ext.name}" khỏi ${r.profilesAffected} profile + chặn tự cài lại`,'success');
+        openExtensionsModal(profile, profilePath); // tải lại danh sách
+      } else { btn.disabled=false; btn.textContent='Xóa khỏi tất cả'; showToast(r.error||'Không xóa được','error'); }
+    });
+
+    list.appendChild(li);
+  });
+}
+function closeExtensionsModal() { document.getElementById('modal-extensions').classList.add('hidden'); }
 
 // ── Render profiles ───────────────────────────────────────
 async function renderProfiles(profiles) {
@@ -1734,6 +1804,10 @@ document.getElementById('modal-storage').addEventListener('click', e => { if(e.t
 document.getElementById('modal-history-close').addEventListener('click', closeHistoryModal);
 document.getElementById('btn-close-history').addEventListener('click', closeHistoryModal);
 document.getElementById('modal-history').addEventListener('click', e => { if(e.target===e.currentTarget) closeHistoryModal(); });
+
+document.getElementById('modal-extensions-close').addEventListener('click', closeExtensionsModal);
+document.getElementById('btn-close-extensions').addEventListener('click', closeExtensionsModal);
+document.getElementById('modal-extensions').addEventListener('click', e => { if(e.target===e.currentTarget) closeExtensionsModal(); });
 
 document.getElementById('modal-gmail-close').addEventListener('click', () => document.getElementById('modal-gmail').classList.add('hidden'));
 document.getElementById('btn-close-gmail').addEventListener('click', () => document.getElementById('modal-gmail').classList.add('hidden'));
