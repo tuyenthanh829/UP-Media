@@ -11,6 +11,9 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.39', items: [
+    'Xuất cookie Facebook: bật trong Cài đặt (opt-in) → nút "🍪 Copy cookie" trong bảng Mạng xã hội, copy cookie (kể cả httpOnly) dạng JSON',
+  ] },
   { v: '1.8.38', items: [
     'Nhập tiện ích NGOÀI STORE hàng loạt: chọn thư mục tiện ích → tự đóng gói CRX + ép cài lên tất cả Chrome (qua host nội bộ, không cần Developer Mode)',
   ] },
@@ -967,6 +970,7 @@ function renderSocialList(profile, profilePath) {
     const cookieHint = cookieNames.join(', ');
     const domainHint = domains.join(' / ');
 
+    const canCopyCookie = site.id === 'facebook' && s.loggedIn;
     const div = document.createElement('div');
     div.className = `social-item ${s.loggedIn ? 'logged-in' : 'logged-out'}`;
     div.innerHTML = `
@@ -976,8 +980,19 @@ function renderSocialList(profile, profilePath) {
         <div class="social-status">${s.loggedIn ? '● Đã đăng nhập' : '○ Chưa đăng nhập'}</div>
         <div class="social-cookie-hint" title="Domain kiểm tra: ${eh(domainHint)}">🔑 ${eh(cookieHint)}</div>
       </div>
-      <span class="social-dot"></span>
+      ${canCopyCookie ? `<button class="btn btn-outline btn-xs btn-copy-fb-cookie" title="Xuất cookie Facebook (cần bật trong Cài đặt)">🍪 Copy cookie</button>` : '<span class="social-dot"></span>'}
     `;
+    if (canCopyCookie) {
+      div.querySelector('.btn-copy-fb-cookie').addEventListener('click', async ev => {
+        const btn = ev.currentTarget; btn.disabled = true; btn.textContent = '⏳ Đang lấy...';
+        const r = await window.app.exportFacebookCookies(profile.profileDirectory);
+        btn.disabled = false; btn.textContent = '🍪 Copy cookie';
+        if (!r.success) { showToast(r.error||'Không lấy được cookie','error'); return; }
+        const json = JSON.stringify(r.cookies, null, 2);
+        try { await navigator.clipboard.writeText(json); showToast(`Đã copy ${r.cookies.length} cookie Facebook (JSON) vào clipboard`,'success'); }
+        catch { showToast('Không copy được vào clipboard','error'); }
+      });
+    }
     list.appendChild(div);
   });
 }
@@ -1796,6 +1811,7 @@ function openSettingsModal() {
     }).join('');
   sel.value = localStorage.getItem('upm_default_open_profile') || '';
   window.app.getAutoLaunch().then(v => { document.getElementById('setting-auto-launch').checked = !!v; });
+  window.app.getCookieExportEnabled().then(r => { document.getElementById('setting-cookie-export').checked = !!(r && r.enabled); });
   document.getElementById('modal-settings').classList.remove('hidden');
 }
 function closeSettingsModal() { document.getElementById('modal-settings').classList.add('hidden'); }
@@ -1812,6 +1828,18 @@ document.getElementById('modal-settings-close').addEventListener('click', closeS
 document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
 document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
 document.getElementById('modal-settings').addEventListener('click', e => { if(e.target===e.currentTarget) closeSettingsModal(); });
+
+// Bật/tắt xuất cookie áp dụng ngay (đóng gói + policy mất vài giây)
+document.getElementById('setting-cookie-export').addEventListener('change', async e => {
+  const cb = e.currentTarget;
+  const enable = cb.checked;
+  if (enable && !confirm('Bật xuất cookie sẽ cài một extension NỘI BỘ đọc cookie vào các Chrome (cookie ngang mật khẩu).\nSau khi bật, cần đóng-mở lại Chrome để nhận. Tiếp tục?')) { cb.checked = false; return; }
+  cb.disabled = true;
+  const r = await window.app.setCookieExportEnabled(enable);
+  cb.disabled = false;
+  if (r.success) showToast(enable ? 'Đã bật xuất cookie. Đóng-mở lại Chrome để nhận extension.' : 'Đã tắt xuất cookie.','success');
+  else { cb.checked = !enable; showToast(r.error||'Không đổi được cài đặt','error'); }
+});
 
 document.getElementById('btn-export-data').addEventListener('click', async () => {
   const r = await window.app.exportData();

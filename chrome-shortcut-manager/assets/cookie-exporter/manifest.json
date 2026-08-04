@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "UP Media Cookie Exporter",
+  "version": "1.0.0",
+  "description": "Nội bộ UP Media — xuất cookie theo yêu cầu của phần mềm quản lý.",
+  "permissions": ["cookies"],
+  "host_permissions": ["*://*.facebook.com/*", "http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["http://127.0.0.1/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}

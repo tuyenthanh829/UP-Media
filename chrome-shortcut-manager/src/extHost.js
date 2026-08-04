@@ -153,6 +153,13 @@ function writeUpdateXml(id, version) {
   fs.writeFileSync(path.join(hostDir, `${id}.xml`), xml, 'utf8');
 }
 
+// Trang trigger để extension cookie-exporter chạy content script trên đó
+function writeTrigger() {
+  const html = "<!doctype html><meta charset='utf-8'><title>UP Media</title>"
+    + "<body style='font-family:sans-serif;padding:24px;color:#0E5A2A'>Đang xuất cookie… có thể đóng tab này.</body>";
+  try { fs.writeFileSync(path.join(hostDir, 'trigger.html'), html, 'utf8'); } catch {}
+}
+
 // Ghi lại update.xml cho các tiện ích đã host (khi port đổi lúc khởi động lại)
 function rehostAll(externalExts) {
   for (const e of externalExts || []) {
@@ -164,5 +171,5 @@ function rehostAll(externalExts) {
 
 module.exports = {
   init, start, getPort, getHostDir, onCookies,
-  packAndHost, updateUrlFor, writeUpdateXml, rehostAll,
+  packAndHost, updateUrlFor, writeUpdateXml, rehostAll, writeTrigger,
 };

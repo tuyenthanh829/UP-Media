@@ -2,7 +2,21 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
+const crypto = require('crypto');
 const XLSX = require('xlsx');
+
+// Chờ cookie do extension gửi về, khớp theo token
+const pendingCookieCaptures = new Map();
+
+function copyDirRecursive(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const s = path.join(src, entry.name);
+    const d = path.join(dst, entry.name);
+    if (entry.isDirectory()) copyDirRecursive(s, d);
+    else fs.copyFileSync(s, d);
+  }
+}
 
 const chromeProfiles = require('./src/chromeProfiles');
 const shortcuts = require('./src/shortcuts');
@@ -46,7 +60,13 @@ app.whenReady().then(async () => {
   // Khởi động localhost host cho tiện ích tự đóng gói; cập nhật lại URL theo port mới
   try {
     extHost.init(app.getPath('userData'));
+    extHost.onCookies(data => {
+      if (!data || !data.token) return;
+      const pend = pendingCookieCaptures.get(data.token);
+      if (pend) { pendingCookieCaptures.delete(data.token); clearTimeout(pend.timer); pend.resolve(data.cookies || []); }
+    });
     const p = await extHost.start(47810);
+    extHost.writeTrigger();
     const exts = configStore.getExternalExtensions();
     if (p && exts.length) {
       extHost.rehostAll(exts);
@@ -532,6 +552,79 @@ ipcMain.handle('import-data', async () => {
   configStore.saveGroups(Array.from(curGroups));
   configStore.saveGroupSubs(curSubs);
   return { success: true, created, failed, total: rows.length };
+});
+
+// ── Xuất cookie Facebook qua localhost (opt-in) ───────────
+ipcMain.handle('get-cookie-export-enabled', async () => ({
+  enabled: !!(configStore.getConfig().settings || {}).cookieExportEnabled,
+}));
+
+ipcMain.handle('set-cookie-export-enabled', async (_, enabled) => {
+  const pol = configStore.getExtPolicy();
+  let exts = configStore.getExternalExtensions();
+  const settings = configStore.getConfig().settings || {};
+
+  if (enabled) {
+    const chromePath = shortcuts.findChrome();
+    if (!chromePath) return { success: false, error: 'Không tìm thấy Google Chrome.' };
+    if (!extHost.getPort()) return { success: false, error: 'Máy chủ nội bộ chưa sẵn sàng.' };
+    const srcDir = path.join(__dirname, 'assets', 'cookie-exporter');
+    const dstDir = path.join(app.getPath('userData'), 'ext-host', 'cookie-exporter');
+    try { copyDirRecursive(srcDir, dstDir); }
+    catch (e) { return { success: false, error: 'Không sao chép được extension: ' + e.message }; }
+
+    let packed;
+    try { packed = await extHost.packAndHost(chromePath, dstDir); }
+    catch (e) { return { success: false, error: e.message }; }
+    extHost.writeTrigger();
+
+    exts = exts.filter(e => e.id !== packed.id);
+    exts.push({ id: packed.id, version: packed.version, folder: dstDir, name: 'UP Media Cookie Exporter', cookieExporter: true });
+    configStore.saveExternalExtensions(exts);
+
+    pol.blocklist = pol.blocklist.filter(id => id !== packed.id);
+    if (!pol.forcelist.includes(packed.id)) pol.forcelist.push(packed.id);
+    pol.updateUrls[packed.id] = packed.updateUrl;
+    configStore.saveExtPolicy(pol);
+    const verify = await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
+    if (!(verify.idsWritten || []).includes(packed.id))
+      return { success: false, error: 'Không ghi được policy vào registry. Thử chạy bằng quyền Administrator.' };
+
+    configStore.saveSettings({ cookieExportEnabled: true, cookieExporterId: packed.id });
+    return { success: true, id: packed.id };
+  } else {
+    const id = settings.cookieExporterId;
+    if (id) {
+      pol.forcelist = pol.forcelist.filter(x => x !== id);
+      delete pol.updateUrls[id];
+      configStore.saveExtPolicy(pol);
+      configStore.saveExternalExtensions(exts.filter(e => e.id !== id));
+      await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
+    }
+    configStore.saveSettings({ cookieExportEnabled: false });
+    return { success: true };
+  }
+});
+
+ipcMain.handle('export-facebook-cookies', async (_, profileDirectory) => {
+  const settings = configStore.getConfig().settings || {};
+  if (!settings.cookieExportEnabled) return { success: false, error: 'Chưa bật xuất cookie trong Cài đặt.' };
+  const port = extHost.getPort();
+  if (!port) return { success: false, error: 'Máy chủ nội bộ chưa sẵn sàng.' };
+
+  const token = crypto.randomBytes(8).toString('hex');
+  const url = `http://127.0.0.1:${port}/trigger.html?token=${token}&dir=${encodeURIComponent(profileDirectory)}`;
+  const cookiesP = new Promise(resolve => {
+    const timer = setTimeout(() => { pendingCookieCaptures.delete(token); resolve(null); }, 20000);
+    pendingCookieCaptures.set(token, { resolve, timer });
+  });
+  try { shortcuts.openProfileWithUrl(profileDirectory, url, settings.chromeUserDataPath || null); }
+  catch (e) { return { success: false, error: e.message }; }
+
+  const cookies = await cookiesP;
+  if (!cookies) return { success: false, error: 'Hết thời gian chờ. Đảm bảo đã bật xuất cookie và đã đóng-mở lại Chrome sau khi bật.' };
+  if (!cookies.length) return { success: false, error: 'Không tìm thấy cookie Facebook trong profile này.' };
+  return { success: true, cookies };
 });
 
 // Bật/tắt khởi động cùng Windows
