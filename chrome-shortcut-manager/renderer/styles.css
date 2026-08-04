@@ -417,6 +417,10 @@ body{
 .row-opens{text-align:center;font-weight:700;color:var(--upm-green);font-size:13px}
 .row-head .row-opens{color:var(--muted);font-weight:700}
 .row-act{text-align:right}
+.profile-row.clickable{cursor:pointer}
+.profile-row.clickable:hover{border-left-color:var(--upm-yellow);background:var(--upm-green-pale)}
+.row-open-hint{font-size:11px;font-weight:600;color:var(--upm-green);opacity:0;transition:opacity .15s}
+.profile-row.clickable:hover .row-open-hint{opacity:1}
 .row-chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px}
 .row-chip.on{background:var(--upm-green-pale);color:var(--upm-green)}
 .row-chip.muted{background:var(--border);color:var(--muted)}
@@ -428,7 +432,7 @@ body{
 .settings-switch{width:20px;height:20px;accent-color:var(--upm-green);cursor:pointer;flex-shrink:0}
 
 /* ── Changelog modal ─────────────────────────────────────── */
-.changelog-list{list-style:none;display:flex;flex-direction:column;gap:14px}
+.changelog-list{list-style:none;display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow-y:auto;padding-right:6px}
 .changelog-item{border-left:3px solid var(--upm-green);padding-left:12px}
 .changelog-ver{font-family:'Unbounded','Arial Black',sans-serif;font-size:14px;font-weight:700;color:var(--upm-green);margin-bottom:5px}
 .changelog-changes{list-style:disc;padding-left:18px;display:flex;flex-direction:column;gap:3px}

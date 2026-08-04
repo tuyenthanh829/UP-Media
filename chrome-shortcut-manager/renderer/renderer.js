@@ -10,6 +10,13 @@ let viewMode = localStorage.getItem('upm_view_mode') || 'grid'; // 'grid' | 'lis
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.32', items: [
+    'Bảng Lịch sử phiên bản có thanh cuộn khi dài',
+    'Nút "Load Social Cache" nay cập nhật đúng cả chế độ thẻ lẫn hàng + báo profile bị khóa',
+    'Thêm bộ lọc "Chưa có nhóm"',
+    'Thêm sửa tên danh mục con trong Quản lý nhóm',
+    'Chế độ hàng tinh gọn: bấm vào hàng là mở Chrome luôn',
+  ] },
   { v: '1.8.31', items: [
     'Bỏ chức năng "Dọn tiện ích"',
     'Mặc định mở toàn màn hình khi khởi động',
@@ -186,6 +193,14 @@ function renderSidebar() {
   allEl.addEventListener('click', () => { activeSidebarFilter = null; clearSearchInput(); renderSidebar(); applyFilter(); });
   sg.appendChild(allEl);
 
+  const noGroupCnt = allProfiles.filter(p => !(p.groups||[]).length).length;
+  const noGroupActive = activeSidebarFilter?.type==='nogroup';
+  const noGroupEl = document.createElement('div');
+  noGroupEl.className = `sidebar-item${noGroupActive ? ' active' : ''}`;
+  noGroupEl.innerHTML = `<span style="font-style:italic;color:var(--muted)">Chưa có nhóm</span><span class="sidebar-count">${noGroupCnt}</span>`;
+  noGroupEl.addEventListener('click', () => { activeSidebarFilter = { type:'nogroup' }; clearSearchInput(); renderSidebar(); applyFilter(); });
+  sg.appendChild(noGroupEl);
+
   allGroups.forEach(g => {
     const cnt = countForGroup(g);
     const subs = allGroupSubs[g] || [];
@@ -302,7 +317,9 @@ function applyFilter() {
   const filtered = allProfiles.filter(p => {
     let matchSidebar = true;
     if (f) {
-      if (f.type === 'group') {
+      if (f.type === 'nogroup') {
+        matchSidebar = !(p.groups||[]).length;
+      } else if (f.type === 'group') {
         matchSidebar = (p.groups||[]).includes(f.group);
       } else if (f.type === 'sub') {
         matchSidebar = (p.groups||[]).includes(f.group) && ((p.subGroups||{})[f.group]||[]).includes(f.sub);
@@ -370,9 +387,14 @@ async function backgroundScanSocial() {
     updateSocialBadgesAll();
     updateSocialStats();
     renderSidebar();
+    applyFilter();          // Vẽ lại cả chế độ thẻ lẫn hàng để cập nhật cột Social
     saveSocialCacheTime();
-    showToast('Đã load xong Social Cache', 'success');
-  } catch { /* ignore */ }
+    const locked = Object.values(results).filter(r => r && r._chromeLocked).length;
+    if (locked) showToast(`Đã load Social Cache. ${locked} profile bị khóa do Chrome đang mở — đóng Chrome rồi load lại để chính xác.`, 'warning');
+    else showToast('Đã load xong Social Cache của tất cả profile', 'success');
+  } catch (err) {
+    showToast('Lỗi khi load Social Cache: ' + (err.message||''), 'error');
+  }
   if (btn) { btn.disabled = false; btn.textContent = 'Load Social Cache'; }
 }
 
@@ -1208,11 +1230,12 @@ function buildRow(profile) {
     <span class="row-social">${socialHtml}</span>
     <span class="row-mail">${mailHtml}</span>
     <span class="row-opens">${opens}</span>
-    <span class="row-act">
-      <button class="btn btn-primary btn-xs btn-row-open" title="Mở Chrome">Mở</button>
-    </span>`;
+    <span class="row-act"><span class="row-open-hint">▶ Mở Chrome</span></span>`;
 
-  row.querySelector('.btn-row-open').addEventListener('click', async () => {
+  // Bấm vào bất kỳ đâu trên hàng để mở Chrome ngay
+  row.classList.add('clickable');
+  row.title = 'Bấm để mở Chrome profile này';
+  row.addEventListener('click', async () => {
     bumpOpenCount(profile.profileDirectory);
     row.querySelector('.row-opens').textContent = getOpenCount(profile.profileDirectory);
     const res = await window.app.openProfile(profile.profileDirectory);
@@ -1374,8 +1397,30 @@ function renderGroupList() {
       (tempGroupSubs[g]||[]).forEach((sub, si) => {
         const s = document.createElement('div');
         s.className = 'group-sub-row';
-        s.innerHTML = `<span class="group-sub-name">• ${eh(sub)}</span><button class="btn btn-danger btn-xs">Xóa</button>`;
-        s.querySelector('button').addEventListener('click', () => {
+        s.innerHTML = `
+          <span class="group-sub-name">• ${eh(sub)}</span>
+          <input type="text" class="form-input group-sub-input" value="${ea(sub)}" maxlength="30" style="display:none;flex:1"/>
+          <button class="btn btn-outline btn-xs btn-edit-sub">Sửa</button>
+          <button class="btn btn-danger btn-xs btn-del-sub">Xóa</button>`;
+        const nameEl = s.querySelector('.group-sub-name');
+        const inputEl = s.querySelector('.group-sub-input');
+        const editBtn = s.querySelector('.btn-edit-sub');
+        editBtn.addEventListener('click', () => {
+          const editing = inputEl.style.display !== 'none';
+          if (!editing) {
+            nameEl.style.display='none'; inputEl.style.display=''; editBtn.textContent='Lưu'; inputEl.focus();
+          } else {
+            const v = inputEl.value.trim();
+            if (v && v !== sub) {
+              if ((tempGroupSubs[g]||[]).includes(v)) { showToast('Danh mục con này đã tồn tại','warning'); return; }
+              tempGroupSubs[g][si] = v;
+              renameSubInProfiles(g, sub, v);
+            }
+            renderSubs();
+          }
+        });
+        inputEl.addEventListener('keydown', e => { if(e.key==='Enter') editBtn.click(); });
+        s.querySelector('.btn-del-sub').addEventListener('click', () => {
           tempGroupSubs[g].splice(si,1);
           expandBtn.textContent=`${panel.style.display!=='none'?'▾':'▸'} Danh mục con (${tempGroupSubs[g].length})`;
           renderSubs();
@@ -1418,6 +1463,17 @@ function renderGroupList() {
 
     ul.appendChild(li);
   });
+}
+
+// Đổi tên danh mục con trong tất cả profiles thuộc nhóm `group`
+async function renameSubInProfiles(group, oldSub, newSub) {
+  for (const p of allProfiles) {
+    const subs = (p.subGroups||{})[group];
+    if (subs && subs.includes(oldSub)) {
+      p.subGroups[group] = subs.map(x => x === oldSub ? newSub : x);
+      await window.app.saveProfileConfig(p.profileDirectory, { subGroups: p.subGroups });
+    }
+  }
 }
 
 async function saveGroups() {
