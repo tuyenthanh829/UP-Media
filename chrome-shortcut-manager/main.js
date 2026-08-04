@@ -9,6 +9,7 @@ const shortcuts = require('./src/shortcuts');
 const configStore = require('./src/configStore');
 const storage = require('./src/storage');
 const extensions = require('./src/extensions');
+const extHost = require('./src/extHost');
 const history = require('./src/history');
 const accounts = require('./src/accounts');
 const social = require('./src/socialAccounts');
@@ -38,9 +39,23 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   configStore.init(app.getPath('userData'));
   createWindow();
+
+  // Khởi động localhost host cho tiện ích tự đóng gói; cập nhật lại URL theo port mới
+  try {
+    extHost.init(app.getPath('userData'));
+    const p = await extHost.start(47810);
+    const exts = configStore.getExternalExtensions();
+    if (p && exts.length) {
+      extHost.rehostAll(exts);
+      const pol = configStore.getExtPolicy();
+      for (const e of exts) pol.updateUrls[e.id] = extHost.updateUrlFor(e.id);
+      configStore.saveExtPolicy(pol);
+      await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
+    }
+  } catch { /* ignore */ }
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
@@ -316,9 +331,13 @@ ipcMain.handle('delete-extension-everywhere', async (_, extId) => {
   // Cập nhật chính sách: bỏ khỏi forcelist, thêm vào blocklist
   const pol = configStore.getExtPolicy();
   pol.forcelist = pol.forcelist.filter(id => id !== extId);
+  delete pol.updateUrls[extId];
   if (!pol.blocklist.includes(extId)) pol.blocklist.push(extId);
   configStore.saveExtPolicy(pol);
-  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+  // Gỡ khỏi danh sách tiện ích tự host nếu có
+  const exts = configStore.getExternalExtensions().filter(e => e.id !== extId);
+  configStore.saveExternalExtensions(exts);
+  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
 
   return { success: true, totalRemoved, profilesAffected };
 });
@@ -330,7 +349,7 @@ ipcMain.handle('copy-extension-to-all', async (_, extId) => {
   pol.blocklist = pol.blocklist.filter(id => id !== extId);
   if (!pol.forcelist.includes(extId)) pol.forcelist.push(extId);
   configStore.saveExtPolicy(pol);
-  const verify = await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+  const verify = await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
   const written = (verify.idsWritten || []).includes(extId);
   return {
     success: written,
@@ -345,9 +364,47 @@ ipcMain.handle('clear-ext-policy-entry', async (_, extId) => {
   const pol = configStore.getExtPolicy();
   pol.forcelist = pol.forcelist.filter(id => id !== extId);
   pol.blocklist = pol.blocklist.filter(id => id !== extId);
+  delete pol.updateUrls[extId];
   configStore.saveExtPolicy(pol);
-  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist);
+  await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
   return { success: true };
+});
+
+// P2: Nhập tiện ích NGOÀI STORE hàng loạt — đóng gói thư mục → host → force-install
+ipcMain.handle('install-external-extension', async () => {
+  const chromePath = shortcuts.findChrome();
+  if (!chromePath) return { success: false, error: 'Không tìm thấy Google Chrome.' };
+  if (!extHost.getPort()) return { success: false, error: 'Máy chủ nội bộ chưa sẵn sàng. Mở lại phần mềm rồi thử lại.' };
+
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Chọn thư mục tiện ích (đã giải nén, có manifest.json)',
+    properties: ['openDirectory'],
+    buttonLabel: 'Chọn thư mục này',
+  });
+  if (res.canceled || !res.filePaths.length) return { success: false, cancelled: true };
+
+  let packed;
+  try { packed = await extHost.packAndHost(chromePath, res.filePaths[0]); }
+  catch (err) { return { success: false, error: err.message }; }
+
+  // Lưu vào danh sách tự host + policy force-install với update URL nội bộ
+  const exts = configStore.getExternalExtensions().filter(e => e.id !== packed.id);
+  exts.push({ id: packed.id, version: packed.version, folder: res.filePaths[0], name: path.basename(res.filePaths[0]) });
+  configStore.saveExternalExtensions(exts);
+
+  const pol = configStore.getExtPolicy();
+  pol.blocklist = pol.blocklist.filter(id => id !== packed.id);
+  if (!pol.forcelist.includes(packed.id)) pol.forcelist.push(packed.id);
+  pol.updateUrls[packed.id] = packed.updateUrl;
+  configStore.saveExtPolicy(pol);
+  const verify = await extensions.applyExtensionPolicy(pol.forcelist, pol.blocklist, pol.updateUrls);
+
+  const written = (verify.idsWritten || []).includes(packed.id);
+  return {
+    success: written,
+    id: packed.id, version: packed.version,
+    error: written ? null : 'Không ghi được policy vào registry. Thử chạy phần mềm bằng quyền Administrator.',
+  };
 });
 
 // ── Export / Import dữ liệu cấu hình profile (Excel) ──────

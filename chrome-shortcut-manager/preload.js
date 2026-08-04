@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('app', {
   copyExtensionToAll: (extId) => ipcRenderer.invoke('copy-extension-to-all', extId),
   getExtPolicy: () => ipcRenderer.invoke('get-ext-policy'),
   clearExtPolicyEntry: (extId) => ipcRenderer.invoke('clear-ext-policy-entry', extId),
+  installExternalExtension: () => ipcRenderer.invoke('install-external-extension'),
   exportData: () => ipcRenderer.invoke('export-data'),
   importData: () => ipcRenderer.invoke('import-data'),
   getProfileHistory: (profilePath) => ipcRenderer.invoke('get-profile-history', profilePath),

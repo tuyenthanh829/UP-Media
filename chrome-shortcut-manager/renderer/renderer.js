@@ -11,6 +11,9 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.38', items: [
+    'Nhập tiện ích NGOÀI STORE hàng loạt: chọn thư mục tiện ích → tự đóng gói CRX + ép cài lên tất cả Chrome (qua host nội bộ, không cần Developer Mode)',
+  ] },
   { v: '1.8.37', items: [
     'Xuất / Nhập dữ liệu chuyển sang Excel (.xlsx) thay cho JSON — dễ sửa hàng loạt',
   ] },
@@ -1891,6 +1894,15 @@ document.getElementById('modal-history').addEventListener('click', e => { if(e.t
 document.getElementById('modal-extensions-close').addEventListener('click', closeExtensionsModal);
 document.getElementById('btn-close-extensions').addEventListener('click', closeExtensionsModal);
 document.getElementById('modal-extensions').addEventListener('click', e => { if(e.target===e.currentTarget) closeExtensionsModal(); });
+document.getElementById('btn-install-ext-folder').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-install-ext-folder');
+  btn.disabled = true; btn.textContent = 'Đang đóng gói...';
+  const r = await window.app.installExternalExtension();
+  btn.disabled = false; btn.textContent = '➕ Nhập tiện ích ngoài store (thư mục)';
+  if (r.cancelled) return;
+  if (r.success) showToast(`Đã ép cài tiện ích ngoài store (ID ${r.id.slice(0,8)}…). ĐÓNG HẲN toàn bộ Chrome rồi mở lại để nhận. Giữ phần mềm đang chạy.`,'success');
+  else showToast(r.error||'Không nhập được tiện ích','error');
+});
 
 document.getElementById('modal-gmail-close').addEventListener('click', () => document.getElementById('modal-gmail').classList.add('hidden'));
 document.getElementById('btn-close-gmail').addEventListener('click', () => document.getElementById('modal-gmail').classList.add('hidden'));

@@ -246,7 +246,9 @@ const POLICY_ROOTS = [
   'HKCU\\SOFTWARE\\Policies\\Google\\Chrome',   // HKCU không cần quyền admin
 ];
 
-async function applyExtensionPolicy(forcelist, blocklist) {
+// updateUrls: { [id]: customUpdateUrl } — id nào không có thì dùng Web Store
+async function applyExtensionPolicy(forcelist, blocklist, updateUrls = {}) {
+  const urlFor = id => updateUrls[id] || WEBSTORE_UPDATE;
   const wipe = [];
   for (const root of POLICY_ROOTS) {
     wipe.push(runCmd(`reg delete "${root}\\ExtensionInstallForcelist" /f 2>nul`));
@@ -259,7 +261,7 @@ async function applyExtensionPolicy(forcelist, blocklist) {
     if (forcelist.length) {
       add.push(runCmd(`reg add "${root}\\ExtensionInstallForcelist" /f 2>nul`));
       forcelist.forEach((id, i) => add.push(runCmd(
-        `reg add "${root}\\ExtensionInstallForcelist" /v "${i + 1}" /t REG_SZ /d "${id};${WEBSTORE_UPDATE}" /f 2>nul`)));
+        `reg add "${root}\\ExtensionInstallForcelist" /v "${i + 1}" /t REG_SZ /d "${id};${urlFor(id)}" /f 2>nul`)));
     }
     if (blocklist.length) {
       add.push(runCmd(`reg add "${root}\\ExtensionInstallBlocklist" /f 2>nul`));
@@ -274,7 +276,7 @@ async function applyExtensionPolicy(forcelist, blocklist) {
     path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Google', 'Chrome', 'policies', 'managed'),
   ];
   const content = JSON.stringify({
-    ExtensionInstallForcelist: forcelist.map(id => `${id};${WEBSTORE_UPDATE}`),
+    ExtensionInstallForcelist: forcelist.map(id => `${id};${urlFor(id)}`),
     ExtensionInstallBlocklist: blocklist,
   }, null, 2);
   for (const dir of policyDirs) {
