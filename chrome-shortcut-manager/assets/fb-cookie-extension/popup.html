@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { width: 300px; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #F5F0E8; color: #1a1a1a; }
+  .head { background: #0E5A2A; color: #fff; padding: 12px 14px; }
+  .head b { font-size: 14px; }
+  .head span { display: block; font-size: 10px; color: #FFE66D; margin-top: 2px; letter-spacing: .04em; }
+  .body { padding: 14px; }
+  .info { font-size: 12px; background: #fff; border: 1px solid #ddd8cc; border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+  .info .row { display: flex; justify-content: space-between; margin: 2px 0; }
+  .info .uid { font-family: monospace; }
+  button { width: 100%; border: none; border-radius: 999px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+  .primary { background: #0E5A2A; color: #fff; }
+  .outline { background: #fff; color: #0E5A2A; border: 1px solid #0E5A2A; }
+  #status { font-size: 12px; text-align: center; min-height: 16px; margin-top: 4px; }
+  #status.ok { color: #16a34a; font-weight: 600; }
+  #status.err { color: #dc2626; }
+  .note { font-size: 10px; color: #6b6b5f; margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="head"><b>Lấy Cookie Facebook</b><span>BY UP MEDIA</span></div>
+  <div class="body">
+    <div class="info">
+      <div class="row"><span>Số cookie:</span><b id="count">…</b></div>
+      <div class="row"><span>UID (c_user):</span><span class="uid" id="uid">…</span></div>
+    </div>
+    <button class="primary" id="btn-json">📋 Copy cookie (JSON - Cookie Editor)</button>
+    <button class="outline" id="btn-header">📋 Copy chuỗi cookie (name=value)</button>
+    <div id="status"></div>
+    <div class="note">Mở tab Facebook rồi bấm nút để lấy cookie đang đăng nhập. Cookie tương đương mật khẩu — dùng cẩn thận.</div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

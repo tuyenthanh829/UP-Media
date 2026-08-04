@@ -579,6 +579,19 @@ ipcMain.handle('import-data', async () => {
   return { success: true, created, failed, total: rows.length };
 });
 
+// Xuất extension "Lấy cookie Facebook" ra Desktop để cài thủ công (load unpacked)
+ipcMain.handle('export-cookie-extension', async () => {
+  const srcDir = path.join(__dirname, 'assets', 'fb-cookie-extension');
+  const destDir = path.join(shortcuts.getDesktopPath(), 'UP Media - FB Cookie Extension');
+  try {
+    copyDirRecursive(srcDir, destDir);
+    shell.openPath(destDir);
+    return { success: true, path: destDir };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ── Xuất cookie Facebook qua localhost (opt-in) ───────────
 ipcMain.handle('get-cookie-export-enabled', async () => ({
   enabled: !!(configStore.getConfig().settings || {}).cookieExportEnabled,
