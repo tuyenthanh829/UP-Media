@@ -11,6 +11,10 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.40', items: [
+    'Thêm nút "Tải file mẫu" Excel để điền thông tin nhập profile hàng loạt',
+    'Cải thiện thông báo lỗi khi Copy cookie (hướng dẫn kiểm tra extension nội bộ)',
+  ] },
   { v: '1.8.39', items: [
     'Xuất cookie Facebook: bật trong Cài đặt (opt-in) → nút "🍪 Copy cookie" trong bảng Mạng xã hội, copy cookie (kể cả httpOnly) dạng JSON',
   ] },
@@ -984,6 +988,11 @@ function renderSocialList(profile, profilePath) {
     `;
     if (canCopyCookie) {
       div.querySelector('.btn-copy-fb-cookie').addEventListener('click', async ev => {
+        const enabled = await window.app.getCookieExportEnabled();
+        if (!enabled || !enabled.enabled) {
+          showToast('Chưa bật xuất cookie. Vào Cài đặt → bật "Xuất cookie Facebook" → đóng-mở lại Chrome.','warning');
+          return;
+        }
         const btn = ev.currentTarget; btn.disabled = true; btn.textContent = '⏳ Đang lấy...';
         const r = await window.app.exportFacebookCookies(profile.profileDirectory);
         btn.disabled = false; btn.textContent = '🍪 Copy cookie';
@@ -1841,6 +1850,12 @@ document.getElementById('setting-cookie-export').addEventListener('change', asyn
   else { cb.checked = !enable; showToast(r.error||'Không đổi được cài đặt','error'); }
 });
 
+document.getElementById('btn-template-data').addEventListener('click', async () => {
+  const r = await window.app.exportTemplate();
+  if (r.cancelled) return;
+  if (r.success) showToast('Đã lưu file Excel mẫu. Điền theo các cột rồi bấm "Nhập Excel".','success');
+  else showToast(r.error||'Không tạo được file mẫu','error');
+});
 document.getElementById('btn-export-data').addEventListener('click', async () => {
   const r = await window.app.exportData();
   if (r.cancelled) return;

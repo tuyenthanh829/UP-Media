@@ -155,8 +155,17 @@ function writeUpdateXml(id, version) {
 
 // Trang trigger để extension cookie-exporter chạy content script trên đó
 function writeTrigger() {
-  const html = "<!doctype html><meta charset='utf-8'><title>UP Media</title>"
-    + "<body style='font-family:sans-serif;padding:24px;color:#0E5A2A'>Đang xuất cookie… có thể đóng tab này.</body>";
+  const html = `<!doctype html><meta charset='utf-8'><title>UP Media</title>
+<body style='font-family:sans-serif;padding:24px;color:#0E5A2A;line-height:1.6'>
+<h3>Đang xuất cookie…</h3>
+<p id='msg'>Đang lấy cookie, vui lòng đợi 1–2 giây. Nếu lấy xong, tab này sẽ tự đóng.</p>
+<p id='warn' style='display:none;color:#b45309'>⚠ Chưa nhận được cookie. Có thể extension <b>UP Media Cookie Exporter</b> chưa được cài.<br>
+Kiểm tra tại <b>chrome://extensions</b>. Nếu chưa có: mở phần mềm → Cài đặt → bật lại "Xuất cookie Facebook" → đóng hẳn rồi mở lại Chrome.</p>
+<script>
+  setTimeout(function(){ try{ window.close(); }catch(e){} }, 3000);
+  setTimeout(function(){ var w=document.getElementById('warn'); if(w) w.style.display=''; }, 5000);
+</script>
+</body>`;
   try { fs.writeFileSync(path.join(hostDir, 'trigger.html'), html, 'utf8'); } catch {}
 }
 

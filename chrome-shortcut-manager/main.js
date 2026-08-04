@@ -489,6 +489,31 @@ ipcMain.handle('export-data', async () => {
   }
 });
 
+// Tải file Excel mẫu để điền thông tin nhập hàng loạt
+ipcMain.handle('export-template', async () => {
+  const rows = [
+    { [COL.dir]: '(để trống — tự tạo)', [COL.name]: 'Seeding FB 01', [COL.groups]: 'Seeding, BM', [COL.subs]: 'Seeding: Facebook', [COL.notes]: 'Ví dụ tài khoản seeding' },
+    { [COL.dir]: '(để trống — tự tạo)', [COL.name]: 'Ads Meta 02', [COL.groups]: 'Ads', [COL.subs]: 'Ads: Meta, Google', [COL.notes]: '' },
+    { [COL.dir]: '(để trống — tự tạo)', [COL.name]: '', [COL.groups]: '', [COL.subs]: '', [COL.notes]: '' },
+  ];
+  const res = await dialog.showSaveDialog(mainWindow, {
+    title: 'Lưu file Excel mẫu',
+    defaultPath: 'upmedia-mau-nhap-profile.xlsx',
+    filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+  });
+  if (res.canceled || !res.filePath) return { success: false, cancelled: true };
+  try {
+    const ws = XLSX.utils.json_to_sheet(rows, { header: [COL.dir, COL.name, COL.groups, COL.subs, COL.notes] });
+    ws['!cols'] = [{ wch: 20 }, { wch: 28 }, { wch: 22 }, { wch: 32 }, { wch: 42 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mau nhap');
+    XLSX.writeFile(wb, res.filePath);
+    return { success: true, path: res.filePath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // Import từ Excel → tự tạo Chrome profile mới cho từng dòng
 ipcMain.handle('import-data', async () => {
   const res = await dialog.showOpenDialog(mainWindow, {
@@ -622,7 +647,7 @@ ipcMain.handle('export-facebook-cookies', async (_, profileDirectory) => {
   catch (e) { return { success: false, error: e.message }; }
 
   const cookies = await cookiesP;
-  if (!cookies) return { success: false, error: 'Hết thời gian chờ. Đảm bảo đã bật xuất cookie và đã đóng-mở lại Chrome sau khi bật.' };
+  if (!cookies) return { success: false, error: 'Không nhận được phản hồi từ extension. Vào chrome://extensions kiểm tra "UP Media Cookie Exporter" đã được cài chưa. Nếu chưa: vào Cài đặt bật lại xuất cookie → ĐÓNG HẲN toàn bộ Chrome (cả khay đồng hồ) rồi mở lại.' };
   if (!cookies.length) return { success: false, error: 'Không tìm thấy cookie Facebook trong profile này.' };
   return { success: true, cookies };
 });

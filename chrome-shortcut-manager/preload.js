@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('app', {
   exportFacebookCookies: (dir) => ipcRenderer.invoke('export-facebook-cookies', dir),
   exportData: () => ipcRenderer.invoke('export-data'),
   importData: () => ipcRenderer.invoke('import-data'),
+  exportTemplate: () => ipcRenderer.invoke('export-template'),
   getProfileHistory: (profilePath) => ipcRenderer.invoke('get-profile-history', profilePath),
   getGoogleAccounts: (profilePath) => ipcRenderer.invoke('get-google-accounts', profilePath),
   getSocialStatus: (profilePath, sites) => ipcRenderer.invoke('get-social-status', profilePath, sites),
