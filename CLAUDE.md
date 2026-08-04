@@ -546,3 +546,40 @@ window.app.pickUserDataFolder()                     // Dialog chọn thư mục
 ---
 
 *Tài liệu này được tạo bởi Claude Sonnet để phục vụ các phiên Claude Code tương lai tiếp tục phát triển Chrome Manager by UP Media.*
+
+---
+
+## 13. CẬP NHẬT v1.8.26 → v1.8.42 (bổ sung sau bản gốc)
+
+> Phần này bổ sung cho các mục 1–12 ở trên. Version hiện tại: **v1.8.42+**.
+
+### Module mới trong `src/`
+- **`extensions.js`** (mở rộng): `listProfileExtensions(profilePath)` đọc `extensions.settings` từ **Secure Preferences** (KHÔNG phải Preferences) + gộp Preferences; giải mã tên `__MSG_` từ `_locales`. `removeExtensionIdsFromProfile()`, `removeQueueForIds()` (xóa hàng chờ registry + External Extensions). `applyExtensionPolicy(forcelist, blocklist, updateUrls)` ghi `ExtensionInstallForcelist`/`Blocklist` vào registry (HKLM+WOW6432Node+HKCU) + policy JSON managed, rồi **đọc lại registry để verify** → trả `{hkcuOk, hklmOk, idsWritten, allWritten}`. `updateUrls[id]` cho phép self-host (mặc định Web Store `clients2.google.com/service/update2/crx`).
+- **`extHost.js`** (mới): localhost http server phục vụ `.crx` + `update.xml` (GET) và nhận cookie (POST `/cookies`); đóng gói thư mục tiện ích thành CRX bằng `chrome.exe --pack-extension` với khóa cố định (ID ổn định); `packAndHost()`, `writeTrigger()`, `rehostAll()`.
+
+### configStore mở rộng
+- `getExtPolicy()/saveExtPolicy()` → `{forcelist, blocklist, updateUrls}` (tích lũy, ghi đè toàn bộ mỗi lần).
+- `getExternalExtensions()/saveExternalExtensions()` → `[{id, version, folder, name}]` (tiện ích tự host).
+- `settings` thêm: `cookieExportEnabled`, `cookieExporterId`, `cookieStoreExtId` (sẽ dùng cho Web Store), lastScanAt...
+
+### Tính năng UI mới
+1. **Chế độ hiển thị:** nút chuyển **thẻ ⇄ hàng tinh gọn** (localStorage `upm_view_mode`). Hàng hiện: tên · phân loại · social · mail · **số tiện ích** · **lượt mở**. Bấm cả hàng = mở Chrome.
+2. **Sắp xếp theo lượt mở:** localStorage `upm_open_counts`, `bumpOpenCount()` khi mở; `applyFilter()` sort giảm dần.
+3. **Bộ lọc mới:** "Chưa có nhóm" (`type:'nogroup'`), "Chưa đặt tên" (`type:'login', loginType:'unnamed'`), `isUnnamed(p)`.
+4. **Tìm kiếm chuẩn hóa:** `normalizeSearch()` bỏ dấu (NFD + đ→d), hoa/thường, ký tự đặc biệt. Click bộ lọc sidebar tự `clearSearchInput()`.
+5. **Cache dung lượng:** KHÔNG auto-scan khi render (gây đơ 50 profile). Lưu localStorage `upm_cache_sizes`, mỗi thẻ có nút "Tính", modal "Tối ưu dung lượng" persist kết quả.
+6. **Social Cache:** nút "Load Social Cache" (sidebar), tải thủ công, lưu thời gian localStorage `upm_social_cache_time`, tự làm mới >7 ngày. `backgroundScanSocial()` gọi `applyFilter()` để cập nhật cả 2 chế độ.
+7. **Cài đặt (modal mới `#modal-settings`):** mở toàn màn hình (`mainWindow.maximize()`), khởi động cùng Windows (`app.setLoginItemSettings`), chọn profile mở mặc định (localStorage `upm_default_open_profile`), Xuất/Nhập Excel + file mẫu, Xuất extension cookie ra Desktop.
+8. **Lịch sử phiên bản:** mảng `CHANGELOG` trong renderer.js; bấm số version ở header mở modal (cuộn được).
+9. **Quản lý tiện ích (modal `#modal-extensions`):** liệt kê tiện ích/profile; mỗi tiện ích có "Nhân bản ra tất cả" (force-install Web Store) + "Xóa khỏi tất cả"; khối "Đang bị chặn" + nút "Bỏ chặn"; nút "Nhập tiện ích ngoài store (thư mục)".
+10. **Xuất/Nhập Excel:** dùng thư viện `xlsx` (SheetJS, đã thêm vào dependencies + `build.files`). Cột: Thư mục / Tên profile / Nhóm / Danh mục con / Ghi chú. Import tạo `Profile N` mới + mở Chrome khởi tạo (giãn 600ms). `pick()` chấp nhận header có dấu/không dấu.
+11. **Cookie Facebook:** extension độc lập `assets/fb-cookie-extension/` (manifest MV3 + popup.html + popup.js) — popup có textarea, nút Lấy / Copy / Đăng nhập bằng cookie (chrome.cookies.get/set), khử trùng lặp theo tên (ưu tiên `.facebook.com`). Cài thủ công (load unpacked) hoặc — **định hướng tiếp theo** — up Web Store Unlisted (5$) rồi force-install bằng ID qua handler `copy-extension-to-all` (xem file `PROMPT_CODEX_WEBSTORE_EXTENSION.md`).
+
+### Đã GỠ BỎ
+- Tính năng "Dọn tiện ích" (McAfee/IDM) — thay bằng "Xóa 1 tiện ích khỏi tất cả" tổng quát. `EXEMPT_NAMES` không còn được dùng trong luồng chính (constraint cũ ở mục 8.1 không còn hiệu lực bắt buộc).
+
+### IPC handlers mới (main.js)
+`list-profile-extensions`, `count-all-extensions`, `delete-extension-everywhere`, `copy-extension-to-all`, `get-ext-policy`, `clear-ext-policy-entry`, `install-external-extension`, `export-data`, `import-data`, `export-template`, `export-cookie-extension`, `get/set-cookie-export-enabled`, `export-facebook-cookies`, `get/set-auto-launch`.
+
+### Constraint mới
+- Chrome 137+ chặn `--load-extension`; Chrome 130+ tắt CDP. Force-install self-host localhost KHÔNG được Chrome chấp nhận ổn định → khuyến nghị dùng **Chrome Web Store Unlisted + ExtensionInstallForcelist**.

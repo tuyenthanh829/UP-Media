@@ -1,6 +1,49 @@
-# Changelog — Chrome Shortcut Manager
+# Changelog — Chrome Manager by UP Media
 
 Tất cả thay đổi theo từng phiên bản.
+
+---
+
+## v1.8.42
+- Extension cookie: thêm ô textarea xem/sửa cookie, nút Lấy / Copy / Đăng nhập bằng cookie (nhập), khử trùng lặp cho chuỗi cookie chuẩn.
+
+## v1.8.41
+- Lấy cookie Facebook chuyển sang **extension độc lập** (`assets/fb-cookie-extension/`): Cài đặt → "Xuất extension ra Desktop" → tự cài (load unpacked) → bấm icon để Copy/Nhập cookie.
+- Sửa modal Cài đặt bị che nút phía dưới (thêm thanh cuộn).
+
+## v1.8.40
+- Thêm nút "Tải file mẫu" Excel để điền thông tin nhập profile hàng loạt.
+- Cải thiện thông báo lỗi khi Copy cookie.
+
+## v1.8.39
+- Xuất cookie Facebook (opt-in, qua extension nội bộ + localhost) — sau này thay bằng extension độc lập.
+
+## v1.8.38
+- **Nhập tiện ích ngoài store hàng loạt:** đóng gói thư mục thành CRX + ép cài lên tất cả Chrome (self-host localhost, không cần Developer Mode).
+
+## v1.8.37
+- Xuất / Nhập dữ liệu chuyển sang **Excel (.xlsx)** thay JSON — mỗi dòng tạo 1 Chrome mới.
+
+## v1.8.36
+- Bỏ chặn tiện ích đang bị chặn; hiện số tiện ích ở chế độ hàng; Xuất/Nhập dữ liệu; đổi khẩu hiệu header.
+
+## v1.8.34–1.8.35
+- **Quản lý tiện ích:** liệt kê tiện ích của profile (đọc Secure Preferences); nhân bản/ép cài 1 tiện ích ra tất cả Chrome (policy + verify registry); xóa 1 tiện ích khỏi tất cả (kể cả hàng chờ).
+
+## v1.8.31–1.8.33
+- Bỏ "Dọn tiện ích"; mở toàn màn hình; Cài đặt (khởi động cùng Windows, profile mở mặc định); sắp xếp theo lượt mở; **chế độ hàng tinh gọn**; lọc "Chưa đặt tên" / "Chưa có nhóm"; sửa tên danh mục con; **Lịch sử phiên bản** trong app; changelog cuộn được.
+
+## v1.8.30
+- Sửa lỗi đơ: bỏ tự động quét cache dung lượng từng thẻ; thêm nút "Tính" cache riêng.
+
+## v1.8.29
+- Tìm kiếm không phân biệt hoa/thường, dấu tiếng Việt, khoảng trắng, ký tự đặc biệt; tự xóa ô tìm kiếm khi bấm bộ lọc; Social Cache tải thủ công + tự làm mới 7 ngày.
+
+## v1.8.26
+- Nâng cấp toàn bộ giao diện theo nhận diện thương hiệu UP Media.
+
+## v1.8.0–1.8.25
+- Kiểm tra đăng nhập mạng xã hội qua cookie SQLite (v10/v11/v20); đọc Gmail, lịch sử duyệt; xử lý khóa file Chrome (Kill-Read-Reopen); tối ưu cache.
 
 ---
 

@@ -564,3 +564,56 @@ Các số này cập nhật tự động sau mỗi lần quét.
 ---
 
 *Tài liệu do UP Media Agency biên soạn — mọi thắc mắc liên hệ bộ phận kỹ thuật.*
+
+---
+
+## PHẦN BỔ SUNG — TÍNH NĂNG MỚI (v1.8.26 → v1.8.42)
+
+### A. Hai chế độ hiển thị
+- Cạnh ô tìm kiếm có nút chuyển **Thẻ ⇄ Hàng tinh gọn**.
+- **Dạng hàng**: mỗi profile 1 dòng, xem nhanh: Tên · Phân loại · Social · Mail · **Số tiện ích** · **Lượt mở**. **Bấm vào hàng là mở Chrome luôn**.
+
+### B. Tìm kiếm & bộ lọc thông minh
+- Gõ không cần dấu, không phân biệt hoa/thường (gõ "khach hang" ra "Khách hàng").
+- Bấm bộ lọc bên trái sẽ tự xóa ô tìm kiếm.
+- Bộ lọc mới: **Chưa có nhóm**, **Chưa đặt tên**.
+- Profile tự sắp xếp theo **số lần mở nhiều nhất** lên đầu.
+
+### C. Cache dung lượng (đã hết đơ)
+- Mở app không còn tự quét cache (trước đây gây đơ). Mỗi thẻ có nút **"Tính"** để xem dung lượng khi cần; hoặc bấm **"Tối ưu dung lượng"** để tính tất cả.
+
+### D. Kiểm tra đăng nhập mạng xã hội
+- Bấm **"Load Social Cache"** (góc trái dưới) để quét trạng thái đăng nhập tất cả profile. Tự làm mới sau 7 ngày. Nếu Chrome đang mở sẽ báo profile bị khóa — đóng Chrome rồi load lại.
+
+### E. Cài đặt (nút "Cài đặt" trên toolbar)
+- **Mở toàn màn hình** khi khởi động (mặc định).
+- **Khởi động cùng Windows**: bật để app tự mở khi bật máy.
+- **Profile mở mặc định**: chọn 1 profile để tự mở Chrome khi bật app.
+- **Xuất / Nhập Excel** (xem phần F).
+- **Xuất extension Cookie Facebook ra Desktop** (xem phần H).
+
+### F. Xuất / Nhập dữ liệu bằng Excel
+- **📄 Tải file mẫu**: tạo file Excel mẫu có sẵn các cột.
+- **⬇ Xuất Excel**: lưu cấu hình tất cả Chrome (tên, nhóm, danh mục con, ghi chú) ra `.xlsx`.
+- **⬆ Nhập Excel**: điền file mẫu (mỗi dòng 1 tài khoản) → nhập → app **tự tạo Chrome mới** cho từng dòng.
+  - Cột **Thư mục**: để trống (tự tạo). **Nhóm**: cách nhau dấu phẩy. **Danh mục con**: dạng `Nhóm: sub1, sub2`.
+
+### G. Quản lý tiện ích (nút "Tiện ích" trên mỗi thẻ)
+- **Xem** danh sách tiện ích đang cài của profile.
+- **Nhân bản ra tất cả**: ép cài 1 tiện ích (có trên Web Store) lên mọi Chrome.
+- **Xóa khỏi tất cả**: gỡ 1 tiện ích khỏi mọi Chrome + chặn cài lại (kể cả McAfee/IDM trong hàng chờ).
+- **Bỏ chặn**: gỡ chặn tiện ích đã bị phần mềm chặn.
+- **Nhập tiện ích ngoài store (thư mục)**: đóng gói 1 thư mục tiện ích rồi ép cài lên tất cả.
+- Sau khi nhân bản/ép cài: **đóng hẳn toàn bộ Chrome rồi mở lại** để nhận. Nếu báo cần quyền admin → chạy app bằng **Run as administrator**.
+
+### H. Lấy / Nhập cookie Facebook
+1. Cài đặt → **📦 Xuất extension ra Desktop**.
+2. Vào `chrome://extensions` → bật **Chế độ nhà phát triển** → **Tải tiện ích đã giải nén** → chọn thư mục vừa xuất.
+3. Bấm **icon extension** trên Chrome (ở profile đang đăng nhập FB):
+   - **📥 Lấy cookie**: đổ cookie đang đăng nhập vào ô (kể cả `xs` httpOnly).
+   - **📋 Copy**: copy cookie (chọn dạng chuỗi `name=value` hoặc JSON).
+   - **🔑 Đăng nhập bằng cookie**: dán cookie tài khoản khác vào ô → bấm để đăng nhập bằng cookie đó.
+   > Cookie = mật khẩu. Import sang máy/IP khác dễ dính checkpoint Facebook.
+
+### I. Lịch sử phiên bản
+- Bấm vào **số version** ở góc trên header để xem thay đổi qua từng bản.
