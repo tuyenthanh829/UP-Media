@@ -7,7 +7,6 @@ const chromeProfiles = require('./src/chromeProfiles');
 const shortcuts = require('./src/shortcuts');
 const configStore = require('./src/configStore');
 const storage = require('./src/storage');
-const extensions = require('./src/extensions');
 const history = require('./src/history');
 const accounts = require('./src/accounts');
 const social = require('./src/socialAccounts');
@@ -31,7 +30,10 @@ function createWindow() {
     show: false
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();   // Mở toàn màn hình theo mặc định
+    mainWindow.show();
+  });
 }
 
 app.whenReady().then(() => {
@@ -271,25 +273,18 @@ ipcMain.handle('clear-all-cache', async () => {
   return { success: true, freed: totalFreed, freedText: storage.formatBytes(totalFreed), errorCount };
 });
 
-ipcMain.handle('remove-bad-extensions', async () => {
-  const config = configStore.getConfig();
-  const customPath = config.settings?.chromeUserDataPath || null;
-  const { profiles } = chromeProfiles.scanProfiles(customPath);
-  let totalRemoved = 0, skipped = 0;
-  const results = [];
-
-  for (const p of profiles) {
-    const saved = config.profiles?.[p.profileDirectory] || {};
-    const shortcutName = saved.shortcutName || p.chromeProfileName || p.profileDirectory;
-    const isExempt = extensions.EXEMPT_NAMES.some(e => shortcutName === e);
-    if (isExempt) { skipped++; continue; }
-    const { removed } = extensions.removeExtensionsFromProfile(p.profilePath);
-    totalRemoved += removed;
-    if (removed > 0) results.push({ name: shortcutName, removed });
+// Bật/tắt khởi động cùng Windows
+ipcMain.handle('get-auto-launch', async () => {
+  try { return app.getLoginItemSettings().openAtLogin; }
+  catch { return false; }
+});
+ipcMain.handle('set-auto-launch', async (_, enabled) => {
+  try {
+    app.setLoginItemSettings({ openAtLogin: !!enabled, path: process.execPath });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
-
-  extensions.removeFromRegistryAsync().catch(() => {});
-  return { success: true, totalRemoved, skipped, results };
 });
 
 ipcMain.handle('get-profile-history', async (_, profilePath) => {

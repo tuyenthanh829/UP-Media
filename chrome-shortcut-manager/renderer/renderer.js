@@ -6,6 +6,44 @@ let socialSitesConfig = [];
 let profileSocialCache = {}; // { dir: { siteId: {loggedIn,name} } }
 let currentFiltered = [];
 let activeSidebarFilter = null; // { type, group?, sub?, loginType? }
+let viewMode = localStorage.getItem('upm_view_mode') || 'grid'; // 'grid' | 'list'
+
+// ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
+const CHANGELOG = [
+  { v: '1.8.31', items: [
+    'Bỏ chức năng "Dọn tiện ích"',
+    'Mặc định mở toàn màn hình khi khởi động',
+    'Thêm Cài đặt: khởi động cùng Windows, chọn profile mở mặc định',
+    'Sắp xếp profile theo số lần mở nhiều nhất',
+    'Thêm chế độ hiển thị dạng hàng tinh gọn',
+    'Thêm bộ lọc "Chưa đặt tên"',
+    'Thêm màn hình Lịch sử phiên bản',
+  ] },
+  { v: '1.8.30', items: [
+    'Sửa lỗi đơ: bỏ tự động quét cache dung lượng của từng thẻ khi mở app',
+    'Thêm nút "Tính" cache riêng cho mỗi profile',
+  ] },
+  { v: '1.8.29', items: [
+    'Tìm kiếm không phân biệt hoa/thường, dấu tiếng Việt, khoảng trắng, ký tự đặc biệt',
+    'Tự xóa ô tìm kiếm khi bấm bộ lọc',
+    'Social Cache chuyển sang tải thủ công + tự làm mới sau 7 ngày',
+  ] },
+  { v: '1.8.26', items: [
+    'Nâng cấp toàn bộ giao diện theo nhận diện thương hiệu UP Media',
+  ] },
+  { v: '1.8.25', items: [
+    'Sửa lỗi hiển thị cookie v20 (App-Bound Encryption) trong bảng chẩn đoán',
+    'Thu gọn bảng "Dò cookie" cho dễ nhìn',
+  ] },
+  { v: '1.8.0', items: [
+    'Kiểm tra đăng nhập mạng xã hội qua cookie (Facebook, Instagram, TikTok, X, Threads, LinkedIn, Chợ Tốt)',
+    'Đọc tài khoản Gmail, lịch sử duyệt web của từng profile',
+    'Tối ưu dung lượng cache Chrome an toàn',
+  ] },
+  { v: '1.0.0', items: [
+    'Phiên bản đầu tiên: quét profile Chrome, tạo shortcut, phân nhóm, mở nhanh',
+  ] },
+];
 
 // For group rename tracking: [{ name, original }]
 let tempGroups = [];
@@ -23,6 +61,10 @@ function avatarClass(groups) {
   return first ? `av-${groupClass(first)}` : 'av-default';
 }
 function avatarLetter(name) { return (name || '?').charAt(0).toUpperCase(); }
+function isUnnamed(p) {
+  const n = p.shortcutName || '';
+  return !n || n === p.profileDirectory || n === p.chromeProfileName;
+}
 
 function eh(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function ea(s) { return String(s||'').replace(/"/g,'&quot;'); }
@@ -61,6 +103,22 @@ function setCacheSizeCache(dir, size) {
   const store = loadCacheSizeStore();
   store[dir] = { size, at: Date.now() };
   localStorage.setItem(CACHE_SIZE_KEY, JSON.stringify(store));
+}
+
+// ── Open-count store (đếm số lần mở Chrome mỗi profile) ────
+const OPEN_COUNT_KEY = 'upm_open_counts';
+let _openCountStore = null;
+function loadOpenCounts() {
+  if (_openCountStore) return _openCountStore;
+  try { _openCountStore = JSON.parse(localStorage.getItem(OPEN_COUNT_KEY)) || {}; }
+  catch { _openCountStore = {}; }
+  return _openCountStore;
+}
+function getOpenCount(dir) { return loadOpenCounts()[dir] || 0; }
+function bumpOpenCount(dir, n = 1) {
+  const store = loadOpenCounts();
+  store[dir] = (store[dir] || 0) + n;
+  localStorage.setItem(OPEN_COUNT_KEY, JSON.stringify(store));
 }
 
 // ── Toast ─────────────────────────────────────────────────
@@ -177,6 +235,17 @@ function renderSidebar() {
   gmailEl.addEventListener('click', () => { activeSidebarFilter={type:'login',loginType:'gmail'}; clearSearchInput(); renderSidebar(); applyFilter(); });
   sl.appendChild(gmailEl);
 
+  const unnamedCnt = allProfiles.filter(isUnnamed).length;
+  const unnamedActive = activeSidebarFilter?.type==='login' && activeSidebarFilter?.loginType==='unnamed';
+  const unnamedEl = document.createElement('div');
+  unnamedEl.className = `sidebar-item${unnamedActive ? ' active' : ''}`;
+  unnamedEl.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    <span>Chưa đặt tên</span><span class="sidebar-count">${unnamedCnt}</span>
+  `;
+  unnamedEl.addEventListener('click', () => { activeSidebarFilter={type:'login',loginType:'unnamed'}; clearSearchInput(); renderSidebar(); applyFilter(); });
+  sl.appendChild(unnamedEl);
+
   const socialCnt = countHasSocial();
   const socialActive = activeSidebarFilter?.type==='login' && activeSidebarFilter?.loginType==='social';
   const socialEl = document.createElement('div');
@@ -245,6 +314,8 @@ function applyFilter() {
       } else if (f.type === 'login' && f.loginType === 'social-site') {
         const sc = profileSocialCache[p.profileDirectory];
         matchSidebar = !!(sc && sc[f.siteId]?.loggedIn);
+      } else if (f.type === 'login' && f.loginType === 'unnamed') {
+        matchSidebar = isUnnamed(p);
       }
     }
 
@@ -256,6 +327,13 @@ function applyFilter() {
     ].some(v => normalizeSearch(v).includes(q));
 
     return matchSidebar && matchQ;
+  });
+
+  // Sắp xếp mặc định theo số lần mở nhiều nhất, rồi theo thứ tự profile
+  filtered.sort((a, b) => {
+    const d = getOpenCount(b.profileDirectory) - getOpenCount(a.profileDirectory);
+    if (d !== 0) return d;
+    return (a.displayIndex || 0) - (b.displayIndex || 0);
   });
 
   renderProfiles(filtered);
@@ -661,6 +739,7 @@ async function buildCard(profile) {
   });
 
   card.querySelector('.btn-open').addEventListener('click', async e => {
+    bumpOpenCount(e.currentTarget.dataset.dir);
     const res = await window.app.openProfile(e.currentTarget.dataset.dir);
     if (res.success) showToast('Đang mở Chrome profile...','info');
     else showToast(res.error,'error');
@@ -1062,6 +1141,7 @@ async function renderProfiles(profiles) {
   currentFiltered = profiles;
   const grid = document.getElementById('profile-grid');
   grid.innerHTML = '';
+  grid.className = viewMode === 'list' ? 'profile-list' : 'profile-grid';
 
   const btnOpenAll = document.getElementById('btn-open-all');
   const isFiltered = activeSidebarFilter || document.getElementById('search-input').value.trim();
@@ -1075,7 +1155,72 @@ async function renderProfiles(profiles) {
     grid.innerHTML='<div class="no-results"><h3>Không tìm thấy profile nào</h3><p>Thử thay đổi bộ lọc hoặc từ khóa</p></div>';
     return;
   }
-  for (const p of profiles) grid.appendChild(await buildCard(p));
+
+  if (viewMode === 'list') {
+    const header = document.createElement('div');
+    header.className = 'profile-row row-head';
+    header.innerHTML = `
+      <span class="row-name">Tên profile</span>
+      <span class="row-groups">Phân loại</span>
+      <span class="row-social">Social</span>
+      <span class="row-mail">Mail</span>
+      <span class="row-opens" title="Số lần mở Chrome">Lượt mở</span>
+      <span class="row-act"></span>`;
+    grid.appendChild(header);
+    for (const p of profiles) grid.appendChild(buildRow(p));
+  } else {
+    for (const p of profiles) grid.appendChild(await buildCard(p));
+  }
+}
+
+// ── Compact row (chế độ hiển thị tinh gọn) ────────────────
+function buildRow(profile) {
+  const row = document.createElement('div');
+  row.className = 'profile-row';
+  row.dataset.profileDir = profile.profileDirectory;
+
+  const name = profile.shortcutName || profile.chromeProfileName || profile.profileDirectory;
+  const gmailCount = (profile.googleAccounts || []).length;
+  const sc = profileSocialCache[profile.profileDirectory];
+  const socialCount = sc ? Object.values(sc).filter(s=>s.loggedIn).length : null;
+  const opens = getOpenCount(profile.profileDirectory);
+
+  const groupTags = (profile.groups || []).map(g =>
+    `<span class="group-tag gc-${groupClass(g)}" style="padding:1px 7px;font-size:10px">${eh(g)}</span>`
+  ).join('') || '<span style="color:var(--muted);font-size:11px">—</span>';
+
+  const socialHtml = socialCount === null
+    ? '<span class="row-chip muted" title="Chưa tải Social Cache">⏳</span>'
+    : (socialCount > 0
+        ? `<span class="row-chip on">🔗 ${socialCount}</span>`
+        : '<span class="row-chip muted">0</span>');
+  const mailHtml = gmailCount > 0
+    ? `<span class="row-chip on">✉️ ${gmailCount}</span>`
+    : '<span class="row-chip muted">0</span>';
+
+  row.innerHTML = `
+    <span class="row-name" title="${ea(name)}">
+      ${isUnnamed(profile) ? '<span class="row-unnamed-dot" title="Chưa đặt tên"></span>' : ''}
+      <strong>${eh(name)}</strong>
+      <span class="row-dir">${eh(profile.profileDirectory)}</span>
+    </span>
+    <span class="row-groups">${groupTags}</span>
+    <span class="row-social">${socialHtml}</span>
+    <span class="row-mail">${mailHtml}</span>
+    <span class="row-opens">${opens}</span>
+    <span class="row-act">
+      <button class="btn btn-primary btn-xs btn-row-open" title="Mở Chrome">Mở</button>
+    </span>`;
+
+  row.querySelector('.btn-row-open').addEventListener('click', async () => {
+    bumpOpenCount(profile.profileDirectory);
+    row.querySelector('.row-opens').textContent = getOpenCount(profile.profileDirectory);
+    const res = await window.app.openProfile(profile.profileDirectory);
+    if (res.success) showToast('Đang mở Chrome profile...','info');
+    else showToast(res.error,'error');
+  });
+
+  return row;
 }
 
 // ── Scan ──────────────────────────────────────────────────
@@ -1105,6 +1250,7 @@ async function openAllFiltered() {
   const btn = document.getElementById('btn-open-all');
   btn.disabled=true;
   const dirs = currentFiltered.map(p=>p.profileDirectory);
+  dirs.forEach(d => bumpOpenCount(d));
   const res = await window.app.openProfilesBatch(dirs);
   btn.disabled=false;
   showToast(`Đã mở ${res.ok} profile${res.fail?`, ${res.fail} lỗi`:''}`, res.fail?'warning':'success');
@@ -1130,18 +1276,6 @@ async function createAllShortcuts() {
   if (dup) msg+=`, bỏ qua ${dup} tên trùng`;
   if (fail) msg+=`, lỗi ${fail}`;
   showToast(msg, fail||dup?'warning':'success');
-}
-
-async function removeBadExtensions() {
-  const btn = document.getElementById('btn-remove-ext');
-  btn.disabled=true; btn.textContent='Đang dọn...';
-  const res = await window.app.removeBadExtensions();
-  btn.disabled=false;
-  btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Dọn tiện ích`;
-  if (res.success) {
-    if (!res.totalRemoved) showToast('Không tìm thấy tiện ích McAfee/IDM nào','info');
-    else showToast(`Đã xóa ${res.totalRemoved} tiện ích + đã chặn qua Chrome Policy (bỏ qua ${res.skipped} profile được bảo vệ)`,'success');
-  }
 }
 
 async function killAllChrome() {
@@ -1445,9 +1579,62 @@ document.addEventListener('click', () => {
 document.getElementById('btn-scan').addEventListener('click', scanProfiles);
 document.getElementById('btn-create-all').addEventListener('click', createAllShortcuts);
 document.getElementById('btn-open-all').addEventListener('click', openAllFiltered);
-document.getElementById('btn-remove-ext').addEventListener('click', removeBadExtensions);
 document.getElementById('btn-kill-chrome').addEventListener('click', killAllChrome);
 document.getElementById('search-input').addEventListener('input', applyFilter);
+
+// View toggle (grid / list)
+function setViewMode(mode) {
+  viewMode = mode;
+  localStorage.setItem('upm_view_mode', mode);
+  document.getElementById('btn-view-grid').classList.toggle('active', mode==='grid');
+  document.getElementById('btn-view-list').classList.toggle('active', mode==='list');
+  applyFilter();
+}
+document.getElementById('btn-view-grid').addEventListener('click', () => setViewMode('grid'));
+document.getElementById('btn-view-list').addEventListener('click', () => setViewMode('list'));
+
+// Settings modal
+function openSettingsModal() {
+  const sel = document.getElementById('setting-default-profile');
+  sel.innerHTML = '<option value="">— Không mở profile nào —</option>' +
+    allProfiles.map(p => {
+      const nm = p.shortcutName || p.chromeProfileName || p.profileDirectory;
+      return `<option value="${ea(p.profileDirectory)}">${eh(nm)} (${eh(p.profileDirectory)})</option>`;
+    }).join('');
+  sel.value = localStorage.getItem('upm_default_open_profile') || '';
+  window.app.getAutoLaunch().then(v => { document.getElementById('setting-auto-launch').checked = !!v; });
+  document.getElementById('modal-settings').classList.remove('hidden');
+}
+function closeSettingsModal() { document.getElementById('modal-settings').classList.add('hidden'); }
+async function saveSettings() {
+  const auto = document.getElementById('setting-auto-launch').checked;
+  const defProfile = document.getElementById('setting-default-profile').value;
+  localStorage.setItem('upm_default_open_profile', defProfile);
+  await window.app.setAutoLaunch(auto);
+  closeSettingsModal();
+  showToast('Đã lưu cài đặt','success');
+}
+document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
+document.getElementById('modal-settings-close').addEventListener('click', closeSettingsModal);
+document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
+document.getElementById('btn-save-settings').addEventListener('click', saveSettings);
+document.getElementById('modal-settings').addEventListener('click', e => { if(e.target===e.currentTarget) closeSettingsModal(); });
+
+// Changelog modal
+function openChangelogModal() {
+  const list = document.getElementById('changelog-list');
+  list.innerHTML = CHANGELOG.map(rel => `
+    <li class="changelog-item">
+      <div class="changelog-ver">v${eh(rel.v)}</div>
+      <ul class="changelog-changes">${rel.items.map(i=>`<li>${eh(i)}</li>`).join('')}</ul>
+    </li>`).join('');
+  document.getElementById('modal-changelog').classList.remove('hidden');
+}
+function closeChangelogModal() { document.getElementById('modal-changelog').classList.add('hidden'); }
+document.getElementById('app-version').addEventListener('click', openChangelogModal);
+document.getElementById('modal-changelog-close').addEventListener('click', closeChangelogModal);
+document.getElementById('btn-close-changelog').addEventListener('click', closeChangelogModal);
+document.getElementById('modal-changelog').addEventListener('click', e => { if(e.target===e.currentTarget) closeChangelogModal(); });
 
 document.getElementById('btn-pick-folder').addEventListener('click', async () => {
   const chosen = await window.app.pickUserDataFolder();
@@ -1534,8 +1721,21 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-load-social-cache').addEventListener('click', backgroundScanSocial);
   updateSocialCacheUI();
 
+  // Đồng bộ nút chuyển chế độ hiển thị với lựa chọn đã lưu
+  document.getElementById('btn-view-grid').classList.toggle('active', viewMode==='grid');
+  document.getElementById('btn-view-list').classList.toggle('active', viewMode==='list');
+
   renderSidebar();
   await scanProfiles();
+
+  // Tự mở profile mặc định khi khởi động (nếu đã cấu hình)
+  const defProfile = localStorage.getItem('upm_default_open_profile');
+  if (defProfile && allProfiles.some(p => p.profileDirectory === defProfile)) {
+    bumpOpenCount(defProfile);
+    window.app.openProfile(defProfile).then(res => {
+      if (res.success) showToast('Đã tự mở profile mặc định','info');
+    });
+  }
 
   // Auto-load social cache every 7 days
   const lastTime = getSocialCacheTime();

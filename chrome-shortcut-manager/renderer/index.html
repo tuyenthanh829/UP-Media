@@ -174,6 +174,54 @@
   </div>
 </div>
 
+<!-- Modal: Cài đặt -->
+<div id="modal-settings" class="modal-overlay hidden">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <h2>Cài đặt</h2>
+      <button class="modal-close" id="modal-settings-close">&times;</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:16px">
+      <label class="settings-row">
+        <div>
+          <div class="settings-label">Khởi động cùng Windows</div>
+          <div class="settings-desc">Tự động mở phần mềm khi bật máy tính</div>
+        </div>
+        <input type="checkbox" id="setting-auto-launch" class="settings-switch" />
+      </label>
+      <div class="settings-row" style="align-items:flex-start;flex-direction:column;gap:8px">
+        <div>
+          <div class="settings-label">Profile mở mặc định khi khởi động</div>
+          <div class="settings-desc">Tự động mở Chrome với profile này mỗi khi phần mềm được bật lên</div>
+        </div>
+        <select id="setting-default-profile" class="form-input" style="width:100%">
+          <option value="">— Không mở profile nào —</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-success" id="btn-save-settings">Lưu cài đặt</button>
+      <button class="btn btn-outline" id="btn-close-settings">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Lịch sử phiên bản -->
+<div id="modal-changelog" class="modal-overlay hidden">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2>Lịch sử phiên bản</h2>
+      <button class="modal-close" id="modal-changelog-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <ul id="changelog-list" class="changelog-list"></ul>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="btn-close-changelog">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <!-- Header -->
 <header class="header">
   <div class="header-left">
@@ -186,7 +234,7 @@
       </svg>
     </div>
     <div>
-      <h1 class="app-title">Chrome Manager <span class="brand">by UP Media</span> <span id="app-version" style="font-size:13px;font-weight:400;color:var(--muted);letter-spacing:0"></span></h1>
+      <h1 class="app-title">Chrome Manager <span class="brand">by UP Media</span> <span id="app-version" title="Xem lịch sử phiên bản" style="font-size:13px;font-weight:400;color:rgba(255,255,255,.7);letter-spacing:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px"></span></h1>
       <p class="app-subtitle">Giải pháp tổng thể về truyền thông thương hiệu</p>
     </div>
   </div>
@@ -235,9 +283,9 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
       Quản lý nhóm
     </button>
-    <button class="btn btn-danger" id="btn-remove-ext" title="Xóa McAfee WebAdvisor và IDM khỏi tất cả Chrome (trừ 2 profile được bảo vệ)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      Dọn tiện ích
+    <button class="btn btn-secondary" id="btn-settings" title="Cài đặt phần mềm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Cài đặt
     </button>
     <button class="btn btn-secondary" id="btn-kill-chrome" title="Đóng tất cả cửa sổ Chrome đang mở">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="9" y1="8" x2="15" y2="14"/><line x1="15" y1="8" x2="9" y2="14"/></svg>
@@ -245,6 +293,14 @@
     </button>
   </div>
   <div class="toolbar-search">
+    <div class="view-toggle">
+      <button class="view-toggle-btn active" id="btn-view-grid" title="Hiển thị dạng thẻ">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button class="view-toggle-btn" id="btn-view-list" title="Hiển thị dạng hàng tinh gọn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </button>
+    </div>
     <div class="search-box">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       <input type="text" id="search-input" placeholder="Tìm theo tên, email, nhóm, ghi chú..." />
