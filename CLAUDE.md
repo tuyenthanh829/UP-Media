@@ -28,6 +28,8 @@
 - **Phần phụ thuộc Windows** (Admin/UAC, cookie SQLite, registry policy, chống mở trùng qua `wmic`, mở Chrome) **chỉ verify được trên Windows + Chrome thật** — sau khi sửa hãy `node --check` các file JS đã đổi, rồi nhờ owner chạy bản build và cập nhật `DEPLOY_STATUS.md`.
 - **Dependency:** đã có `package-lock.json`; CI dùng `npm ci` (build tái lập được). Đổi dependency thì commit kèm lockfile mới.
 
+**⚠️ KẾT THÚC PHIÊN — BẮT BUỘC cập nhật tài liệu (cơ chế thủ công theo phiên, không tự động):** sau MỖI phiên có thay đổi, phải đồng bộ tài liệu để phiên sau đủ ngữ cảnh — changelog in-app (`renderer/renderer.js`) + `CHANGELOG.md`; `CLAUDE.md` Mục 0/13-14 (gỡ tính năng → đưa sang `HISTORY.md`); `README.md` (version); `HANDOFF_V2.md` / `DEPLOY_STATUS.md` khi cần. **Checklist đầy đủ: `.claude/skills/ship-upmedia/SKILL.md` Mục 4.** Chưa cập nhật đủ = phiên chưa xong.
+
 ---
 
 ## 1. TỔNG QUAN SẢN PHẨM

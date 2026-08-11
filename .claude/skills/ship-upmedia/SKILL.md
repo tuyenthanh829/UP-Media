@@ -59,19 +59,35 @@ Làm việc trên `work-main`, cuối cùng push bằng `work-main:main` (mục 
   `extensions.settings` ở **Secure Preferences**; cache KHÔNG auto-scan (gây đơ).
 - Sau khi sửa: `node --check <file>` mọi file JS đã đổi.
 
-## 4. GHI CHÚ & NOTE (rành mạch — không bỏ qua)
+## 4. CẬP NHẬT TÀI LIỆU — ĐỊNH NGHĨA HOÀN THÀNH (bắt buộc, không bỏ qua)
 
-Mỗi lần có thay đổi người dùng thấy được:
-1. **Changelog trong app:** thêm 1 mục MỚI vào ĐẦU mảng `CHANGELOG` trong
-   `renderer/renderer.js`, version = patch kế tiếp (CI sẽ bump tới số này). Ghi
-   ngắn gọn tiếng Việt từng thay đổi.
-2. **Tài liệu (khi thay đổi lớn/định kỳ):** cập nhật `CHANGELOG.md`, `README.md`,
-   và mục bổ sung trong `CLAUDE.md` / `HUONG_DAN_SU_DUNG.md`.
-3. **Commit message (tiếng Anh)** mô tả rõ WHAT + WHY, kết thúc bằng:
-   ```
-   Co-Authored-By: <tên AI> <noreply@anthropic.com>
-   ```
-   (KHÔNG ghi model id nội bộ vào commit/PR/code.)
+> Mục tiêu: sau MỖI phiên có thay đổi, repo phản ánh đúng trạng thái mới nhất để
+> **AI/dev phiên sau chỉ cần đọc repo là đủ ngữ cảnh triển khai** (cơ chế này là
+> **thủ công theo phiên**, không có gì tự động cập nhật tài liệu). Chưa cập nhật
+> đủ các file dưới đây thì **phiên CHƯA xong**.
+
+Áp dụng theo loại thay đổi:
+1. **Changelog trong app (mọi thay đổi người dùng thấy được):** thêm 1 mục MỚI
+   vào ĐẦU mảng `CHANGELOG` trong `renderer/renderer.js`, version = patch kế
+   tiếp (CI sẽ bump tới số này). Ghi ngắn gọn tiếng Việt.
+2. **`CHANGELOG.md`:** thêm mục version tương ứng (đồng bộ với changelog in-app).
+3. **`CLAUDE.md`:** nếu đổi kiến trúc / thêm-bớt tính năng / constraint / IPC →
+   cập nhật **Mục 0 (TRẠNG THÁI CHUẨN)** và thêm/ sửa mục 13–14. Nếu **gỡ** tính
+   năng → chuyển mô tả cũ sang `HISTORY.md`, để CLAUDE.md chỉ còn trạng thái đúng.
+4. **`preload.js` là nguồn chân lý IPC** — nếu thêm/đổi handler, đảm bảo preload +
+   `main.js` khớp (không cần liệt kê tay ở doc khác).
+5. **`README.md`:** cập nhật dòng version đầu trang + tính năng nếu có mục mới.
+6. **`HANDOFF_V2.md`:** khi có đợt nâng cấp đáng kể / đổi định hướng → thêm/ cập nhật.
+7. **`DEPLOY_STATUS.md`:** khi người dùng xác nhận đã cài & nghiệm thu bản thật →
+   thêm 1 dòng (ngày / version / commit bump trên main / người / kết quả) +
+   tick checklist. (Repo/Release mới nhất ≠ đã nghiệm thu.)
+8. **`HUONG_DAN_SU_DUNG.md`** (người dùng cuối): cập nhật khi được yêu cầu riêng.
+9. **Test:** thêm/sửa hàm logic thuần thì thêm test trong `test/` (`npm test` phải xanh).
+10. **Commit message (tiếng Anh)** mô tả rõ WHAT + WHY, kết thúc bằng:
+    ```
+    Co-Authored-By: <tên AI> <noreply@anthropic.com>
+    ```
+    (KHÔNG ghi model id nội bộ vào commit/PR/code.)
 
 ## 5. COMMIT & PUSH LÊN MAIN (ra bản build)
 
@@ -108,7 +124,7 @@ Khi người dùng báo lỗi kèm ảnh/mô tả:
 
 - [ ] Đã phân luồng Nghiên cứu vs Triển khai (mục 1)?
 - [ ] Đã `fetch + checkout -B work-main origin/main` (mục 2)?
-- [ ] `node --check` sạch (mục 3)?
-- [ ] Đã thêm mục CHANGELOG mới + note (mục 4)?
+- [ ] `node --check` sạch + `npm test` xanh (mục 3)?
+- [ ] **Đã cập nhật tài liệu theo Định nghĩa Hoàn thành (mục 4):** changelog in-app + `CHANGELOG.md`; `CLAUDE.md` Mục 0/13-14 (+ `HISTORY.md` nếu gỡ tính năng); `README.md` version; `HANDOFF_V2.md`/`DEPLOY_STATUS.md` khi cần?
 - [ ] Commit tiếng Anh + Co-Authored-By, push `work-main:main` (mục 5)?
 - [ ] Đã báo version + hướng dẫn test cho người dùng (mục 6)?
