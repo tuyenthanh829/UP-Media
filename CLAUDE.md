@@ -13,6 +13,8 @@
 - **Danh sách IPC API đầy đủ & mới nhất → đọc `preload.js`** (đây là hợp đồng renderer↔main; Mục 11 chỉ còn là tổng quan nhóm, KHÔNG liệt kê đủ).
 - **Lịch sử tính năng theo bản → `renderer/renderer.js` mảng `CHANGELOG`** và file `CHANGELOG.md`.
 - **Bàn giao/định hướng → `HANDOFF_V2.md`**. Quy trình phát hành → `.claude/skills/ship-upmedia/SKILL.md`.
+- **Nội dung cũ / tính năng đã gỡ → `HISTORY.md`** (đã tách khỏi tài liệu này).
+- **Bản đang cài & nghiệm thu thật → `DEPLOY_STATUS.md`** (repo/Release mới nhất ≠ đã nghiệm thu).
 
 **Những điểm đã THAY ĐỔI so với mô tả ở các mục cũ (đừng làm theo mục cũ):**
 - **"Dọn tiện ích McAfee/IDM" (Mục 3.7) ĐÃ GỠ**, thay bằng Quản lý tiện ích tổng quát (xóa/nhân bản/bỏ chặn — Mục 13). `EXEMPT_NAMES` (Mục 8.1) **KHÔNG còn hiệu lực bắt buộc**.
@@ -21,7 +23,10 @@
 
 **Điều KHÔNG đổi (constraint vẫn còn hiệu lực):** brand UP Media (Mục 5) · không xóa cookie/mật khẩu khi clear cache (8.2) · Chrome path cứng (8.3) · Windows-only · Chrome 130+ tắt CDP, 137+ chặn `--load-extension`.
 
-**Kiểm thử:** dự án **KHÔNG có test tự động**. Nhiều tính năng (Admin/UAC, cookie SQLite, registry policy, chống mở trùng qua `wmic`) **chỉ verify được trên Windows + Chrome thật** — sau khi sửa hãy `node --check` các file JS đã đổi, còn lại nhờ owner chạy thử bản build và gửi lại kết quả.
+**Kiểm thử:**
+- **Có test đơn vị cho hàm logic thuần** (`test/*.test.js`, chạy `npm test` — dùng `node:test`, không cần thư viện ngoài): hiện phủ `sanitizeFileName`, `formatBytes`, migration của `configStore`. **Khi thêm/sửa hàm logic thuần, thêm test tương ứng.** CI chạy `npm test` trước khi build.
+- **Phần phụ thuộc Windows** (Admin/UAC, cookie SQLite, registry policy, chống mở trùng qua `wmic`, mở Chrome) **chỉ verify được trên Windows + Chrome thật** — sau khi sửa hãy `node --check` các file JS đã đổi, rồi nhờ owner chạy bản build và cập nhật `DEPLOY_STATUS.md`.
+- **Dependency:** đã có `package-lock.json`; CI dùng `npm ci` (build tái lập được). Đổi dependency thì commit kèm lockfile mới.
 
 ---
 
@@ -116,10 +121,8 @@ spawn(chromePath, [
 - Xóa an toàn: chỉ nội dung thư mục, không xóa thư mục gốc
 - Không xóa cookies, mật khẩu, bookmark, đăng nhập
 
-### 3.7 Dọn tiện ích (Extensions) — ⚠️ ĐÃ GỠ BỎ (xem Mục 13)
-> Mô tả dưới đây là **bản gốc, KHÔNG còn trong app**. Tính năng "Dọn tiện ích McAfee/IDM" đã bị thay bằng **Quản lý tiện ích tổng quát** (liệt kê / xóa 1 tiện ích khỏi tất cả / nhân bản ra tất cả / bỏ chặn / nhập tiện ích ngoài store) — xem Mục 13. Ràng buộc `EXEMPT_NAMES` (Mục 8.1) **không còn hiệu lực**. Giữ lại đoạn này chỉ để hiểu lịch sử.
-- ~~Xóa McAfee WebAdvisor + IDM khỏi tất cả profiles~~
-- ~~2 profile ngoại lệ `Tuyennt.upmedia Default`, `T93 Profile 1`~~
+### 3.7 Dọn tiện ích (Extensions) — ĐÃ GỠ BỎ
+> Tính năng cũ "Dọn McAfee/IDM" (+ ngoại lệ `EXEMPT_NAMES`) đã được thay bằng **Quản lý tiện ích tổng quát** (Mục 13). Chi tiết bản cũ: xem `HISTORY.md`.
 
 ### 3.8 Lịch sử duyệt web
 - Đọc `History` SQLite (copy tạm rồi đọc để tránh lock)
@@ -417,8 +420,8 @@ if (prefix === 'v20') {
 
 ## 8. CONSTRAINT BẮT BUỘC (KHÔNG ĐƯỢC VI PHẠM)
 
-### 8.1 Extension exemption — ⚠️ KHÔNG CÒN HIỆU LỰC
-> `EXEMPT_NAMES` gắn với tính năng "Dọn tiện ích McAfee/IDM" đã bị gỡ (xem Mục 0 & 13). Không còn là constraint bắt buộc. Giữ lại chỉ để hiểu lịch sử. **Không cần bảo vệ ràng buộc này khi nâng cấp.**
+### 8.1 Extension exemption — ĐÃ BỎ (không còn hiệu lực)
+> `EXEMPT_NAMES` không còn dùng, không cần bảo vệ khi nâng cấp. Chi tiết bản cũ: xem `HISTORY.md`.
 
 ### 8.2 Không xóa cookie/mật khẩu khi clear cache
 Tính năng "Tối ưu dung lượng" chỉ xóa các thư mục cache kỹ thuật, KHÔNG được đụng đến Cookies, Login Data, Local Storage, IndexedDB.

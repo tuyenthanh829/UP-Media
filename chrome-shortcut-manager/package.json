@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win",
+    "test": "node --test"
   },
   "dependencies": {
     "sql.js": "^1.10.2",

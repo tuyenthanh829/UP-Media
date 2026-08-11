@@ -32,17 +32,19 @@ App desktop Windows (Electron) quản lý hàng chục–trăm Chrome profile tr
 ### Bắt đầu nâng cấp — đọc gì trước (repo tự đủ, không cần nguồn ngoài)
 1. **`CLAUDE.md` — Mục 0 (TRẠNG THÁI CHUẨN)** trước tiên: điều gì còn hiệu lực / đã gỡ, và các "nguồn chân lý".
 2. **`preload.js`** = danh sách IPC API đầy đủ (`window.app.*` ↔ `ipcMain.handle` trong `main.js`).
-3. **`HANDOFF_V2.md`** (bàn giao + định hướng) và **`CHANGELOG.md`** (lịch sử theo bản).
+3. **`HANDOFF_V2.md`** (bàn giao + định hướng), **`CHANGELOG.md`** (lịch sử theo bản), **`HISTORY.md`** (nội dung/tính năng đã gỡ), **`DEPLOY_STATUS.md`** (bản đã cài & nghiệm thu thật).
 4. **Quy trình phát hành:** `.claude/skills/ship-upmedia/SKILL.md`. Lập kế hoạch: `.claude/skills/plan-product/SKILL.md`.
 
 ### Kiểm thử
-- **Không có test tự động.** Sau khi sửa, chạy `node --check` cho từng file JS đã đổi.
-- Nhiều tính năng (chạy Admin/UAC, đọc cookie SQLite, ghi registry policy, chống mở trùng qua `wmic`) **chỉ verify được trên Windows + Chrome thật** — build qua CI rồi nhờ owner chạy thử & gửi lại kết quả.
+- **Test đơn vị cho hàm logic thuần:** `npm test` (dùng `node:test`, không cần thư viện ngoài) — phủ `sanitizeFileName`, `formatBytes`, migration `configStore`. Thêm/sửa hàm logic thuần thì thêm test trong `test/`. **CI chạy `npm test` trước khi build.**
+- Sau khi sửa, luôn `node --check` các file JS đã đổi.
+- Phần phụ thuộc Windows (Admin/UAC, cookie SQLite, registry policy, chống mở trùng qua `wmic`) **chỉ verify được trên Windows + Chrome thật** — build qua CI rồi nhờ owner chạy thử, cập nhật `DEPLOY_STATUS.md`.
 
 ### Cài đặt & chạy
 ```bash
-npm install
+npm ci              # cài đúng theo package-lock.json (build tái lập được)
 npm start           # chạy dev
+npm test            # chạy test đơn vị
 npm run build:win   # build .exe (NSIS + Portable) → dist/
 ```
 

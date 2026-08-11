@@ -43,13 +43,9 @@ jobs:
         id: bump
         shell: pwsh
         run: |
-          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
-          $parts = $pkg.version -split '\.'
-          $parts[2] = [int]$parts[2] + 1
-          $newVer = $parts -join '.'
-          $pkg.version = $newVer
-          # Ghi lại với UTF-8, giữ indent 2 spaces
-          $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
+          # npm version tự cập nhật CẢ package.json lẫn package-lock.json (giữ đồng bộ cho `npm ci`)
+          $newVer = (npm version patch --no-git-tag-version) -replace '^v',''
+          $newVer = $newVer.Trim()
           echo "version=$newVer" >> $env:GITHUB_OUTPUT
           Write-Host "Version bumped to $newVer"
 
@@ -58,13 +54,16 @@ jobs:
         run: |
           git config user.email "noreply@anthropic.com"
           git config user.name "Claude"
-          git add package.json
+          git add package.json package-lock.json
           git commit -m "chore: bump version to v${{ steps.bump.outputs.version }} [skip ci]"
           git push origin main
 
       # ── 4. Build ──────────────────────────────────────────────
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
 
       - name: Build Windows .exe
         run: npx electron-builder --win --publish never
