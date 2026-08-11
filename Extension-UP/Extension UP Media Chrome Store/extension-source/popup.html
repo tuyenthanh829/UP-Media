@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<style>
+  body { width: 340px; margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #F5F0E8; color: #1a1a1a; }
+  .head { background: #0E5A2A; color: #fff; padding: 10px 14px; }
+  .head b { font-size: 14px; }
+  .head span { display: block; font-size: 10px; color: #FFE66D; margin-top: 2px; letter-spacing: .04em; }
+  .body { padding: 12px 14px; }
+  .info { font-size: 12px; background: #fff; border: 1px solid #ddd8cc; border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+  .info .row { display: flex; justify-content: space-between; margin: 2px 0; }
+  .info .uid { font-family: monospace; }
+  textarea { width: 100%; height: 120px; box-sizing: border-box; border: 1px solid #ddd8cc; border-radius: 8px; padding: 8px; font-family: monospace; font-size: 11px; resize: vertical; background: #fff; }
+  .fmt { display: flex; gap: 10px; font-size: 11px; margin: 8px 0; }
+  .fmt label { cursor: pointer; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  button { border: none; border-radius: 999px; padding: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .primary { background: #0E5A2A; color: #fff; }
+  .accent { background: #7c3aed; color: #fff; }
+  .outline { background: #fff; color: #0E5A2A; border: 1px solid #0E5A2A; }
+  .full { grid-column: 1 / -1; }
+  #status { font-size: 12px; text-align: center; min-height: 16px; margin-top: 8px; }
+  #status.ok { color: #16a34a; font-weight: 600; }
+  #status.err { color: #dc2626; font-weight: 600; }
+  .note { font-size: 10px; color: #6b6b5f; margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="head"><b>Cookie Facebook</b><span>BY UP MEDIA</span></div>
+  <div class="body">
+    <div class="info">
+      <div class="row"><span>Số cookie:</span><b id="count">0</b></div>
+      <div class="row"><span>UID (c_user):</span><span class="uid" id="uid">—</span></div>
+    </div>
+
+    <div class="fmt">
+      <label><input type="radio" name="fmt" value="string" checked /> Chuỗi (name=value)</label>
+      <label><input type="radio" name="fmt" value="json" /> JSON (Cookie-Editor)</label>
+    </div>
+
+    <textarea id="box" placeholder="Bấm 'Lấy cookie' để hiển thị cookie ở đây, hoặc dán cookie vào rồi bấm 'Đăng nhập bằng cookie'."></textarea>
+
+    <div class="btns">
+      <button class="primary" id="btn-get">📥 Lấy cookie</button>
+      <button class="outline" id="btn-copy">📋 Copy</button>
+      <button class="accent full" id="btn-login">🔑 Đăng nhập bằng cookie (nhập)</button>
+    </div>
+
+    <div id="status"></div>
+    <div class="note">Lấy: đọc cookie đang đăng nhập (kể cả httpOnly). Nhập: dán cookie của tài khoản khác rồi bấm để đăng nhập bằng cookie đó. Cookie ngang mật khẩu — dùng cẩn thận.</div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

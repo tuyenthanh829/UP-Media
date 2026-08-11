@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "extension_name": "UP Media - Cookie Facebook",
+  "extension_id": "bkdigiggjmpomfoeafbbgpipjennbhen",
+  "manifest_version": "1.1.0",
+  "store_status": "published",
+  "store_visibility": "unlisted",
+  "developer_registration_fee_usd": 5,
+  "store_item_created_date": "2026-08-04",
+  "production_verified_date": "2026-08-11",
+  "chrome_manager_verified_version": "1.8.49",
+  "owner": "Tuyen Thanh / UP Media",
+  "webstore_update_url": "https://clients2.google.com/service/update2/crx",
+  "notion_source": "https://app.notion.com/p/3b9ac0980c4a8125a5b0f5fd8552a74b?pvs=204",
+  "integration_source": "chrome-shortcut-manager/assets/fb-cookie-extension/",
+  "privacy": {
+    "processing_location": "local_device",
+    "transmits_to_developer_server": false,
+    "sells_or_shares_user_data": false,
+    "sensitive_data_types": [
+      "authentication_information",
+      "facebook_user_id_c_user"
+    ]
+  }
+}
