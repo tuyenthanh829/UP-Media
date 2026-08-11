@@ -11,8 +11,8 @@ Project da duoc day len GitHub:
 
 Luu y bao mat:
 
-- `Extension-UP/quiz-test-app/data/quizzes.json` da duoc reset ve `[]` truoc khi push.
-- `Extension-UP/quiz-test-app/data/results.json` da duoc reset ve `[]` truoc khi push.
+- `Extension-UP/Quiz Test UP/data/quizzes.json` da duoc reset ve `[]` truoc khi push.
+- `Extension-UP/Quiz Test UP/data/results.json` da duoc reset ve `[]` truoc khi push.
 - Khong day du lieu de that hoac ket qua nhan su len public GitHub.
 
 ## Thanh phan da co
@@ -22,7 +22,7 @@ Luu y bao mat:
 Thu muc:
 
 ```text
-Extension-UP/extension
+Extension-UP/NotebookLM Sheet Exporter
 ```
 
 Chuc nang:
@@ -42,7 +42,7 @@ Chuc nang:
 Thu muc:
 
 ```text
-Extension-UP/quiz-test-app
+Extension-UP/Quiz Test UP
 ```
 
 Chuc nang:
@@ -63,7 +63,7 @@ score = correct_count / total_questions * 100
 Chay local:
 
 ```powershell
-cd D:\Vibe-coding\Codex\Extension-UP\quiz-test-app
+cd "D:\Vibe-coding\Codex\Extension-UP\Quiz Test UP"
 npm start
 ```
 
@@ -198,7 +198,7 @@ Giai doan sau:
 File:
 
 ```text
-Extension-UP/quiz-test-app/server.js
+Extension-UP/Quiz Test UP/server.js
 ```
 
 Can lam:
@@ -221,7 +221,7 @@ Can lam:
 File:
 
 ```text
-Extension-UP/quiz-test-app/public/app.js
+Extension-UP/Quiz Test UP/public/app.js
 ```
 
 Can lam:
@@ -237,7 +237,7 @@ Can lam:
 Render settings de xuat:
 
 ```text
-Root Directory: Extension-UP/quiz-test-app
+Root Directory: Extension-UP/Quiz Test UP
 Build Command: npm install
 Start Command: npm start
 Environment:
@@ -271,11 +271,11 @@ Thu muc can xem:
 Extension-UP/
 
 Thanh phan hien co:
-1. Extension-UP/extension
+1. Extension-UP/NotebookLM Sheet Exporter
    - Chrome MV3 extension lay quiz tu Google NotebookLM qua app-root data-app-data.
    - Xuat TSV 12 cot: STT, Cau hoi, Phuong an A-D, Dap an dung, Giai thich A-D, Goi y.
 
-2. Extension-UP/quiz-test-app
+2. Extension-UP/Quiz Test UP
    - Node HTTP server thuan, chua dung Express.
    - Local app chay tai http://localhost:5175.
    - Admin paste TSV de tao de.

@@ -5,7 +5,7 @@ Web app noi bo de nhap TSV tu extension NotebookLM, cho nhan su lam bai co bo de
 ## Chay app
 
 ```powershell
-cd D:\Vibe-coding\Codex\Extension-UP\quiz-test-app
+cd "D:\Vibe-coding\Codex\Extension-UP\Quiz Test UP"
 npm start
 ```
 
