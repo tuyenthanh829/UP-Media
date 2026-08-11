@@ -56,5 +56,6 @@ contextBridge.exposeInMainWorld('app', {
   killAndOpenDebug: (profileDirectory) => ipcRenderer.invoke('kill-and-open-debug', profileDirectory),
   socialStatusKillReopen: (profileDirectory, profilePath, sites) => ipcRenderer.invoke('social-status-kill-reopen', profileDirectory, profilePath, sites),
   getVersion: () => ipcRenderer.invoke('get-version'),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   renameGroupInProfiles: (oldName, newName) => ipcRenderer.invoke('rename-group-in-profiles', oldName, newName),
 });

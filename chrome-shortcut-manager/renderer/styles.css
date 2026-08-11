@@ -311,10 +311,13 @@ body{
 .group-sub-name{flex:1;color:var(--muted)}
 
 /* New profile modal groups */
-.new-profile-groups-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:32px;border:1.5px solid var(--border);border-radius:8px;padding:5px 8px}
-.new-profile-group-entry{display:inline-flex;align-items:center;gap:4px;padding:2px 4px;border-radius:6px;background:var(--bg);border:1px solid var(--border)}
+.new-profile-groups-row{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-height:40px;border:1.5px solid var(--border);border-radius:10px;padding:10px}
+.new-profile-group-entry{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--border)}
 .new-profile-group-entry select{border:none;background:transparent;font-size:11px;color:var(--muted);cursor:pointer;outline:none;max-width:110px}
 .new-profile-group-entry select:focus{color:var(--text)}
+.new-profile-sub-wrap{display:flex;flex-wrap:wrap;gap:8px 12px;width:100%;padding-left:2px}
+.new-profile-sub-check{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer;user-select:none}
+.new-profile-sub-check input{accent-color:var(--primary);cursor:pointer}
 
 /* Storage modal */
 .storage-summary{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg);border-radius:8px;margin-bottom:10px;font-size:13px;font-weight:500}
@@ -477,3 +480,53 @@ body{
 
 /* ── Thẻ profile: gợi ý bấm vùng trắng để mở ──────────────── */
 .card-clickable .card-header{cursor:pointer}
+
+/* ── Modal "Tạo tài khoản Chrome mới" — rộng & thoáng ─────── */
+.modal-newprofile{width:640px}
+.np-body{display:flex;flex-direction:column;gap:18px;padding:20px 22px}
+.np-field{display:flex;flex-direction:column;gap:7px}
+.np-label{font-size:12px;font-weight:700;color:var(--upm-green);text-transform:uppercase;letter-spacing:.04em}
+.np-hint{font-size:11px;color:var(--muted);line-height:1.4;margin-top:-2px}
+.np-input{width:100%;box-sizing:border-box;padding:10px 12px;font-size:13px}
+textarea.np-input{min-height:64px;line-height:1.5}
+.np-note{font-size:11.5px;line-height:1.6;color:var(--muted);background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:9px 12px}
+
+/* ── Dải icon bên trái danh sách Chrome ───────────────────── */
+.list-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;position:relative;z-index:20}
+.list-icon-wrap{position:relative;display:inline-flex}
+.list-icon-btn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--upm-green);cursor:pointer;transition:all .15s}
+.list-icon-btn:hover{border-color:var(--upm-green);background:var(--upm-green-pale)}
+.list-icon-pop{position:absolute;top:calc(100% + 8px);left:0;width:300px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(14,90,42,.16);padding:12px;opacity:0;visibility:hidden;transform:translateY(-4px);transition:all .15s;z-index:60}
+.list-icon-wrap:hover .list-icon-pop{opacity:1;visibility:visible;transform:translateY(0)}
+.list-icon-pop-title{font-family:'Unbounded','Arial Black',sans-serif;font-size:12px;font-weight:700;color:var(--upm-green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.list-icon-pop .shortcuts-list{max-height:340px}
+
+/* ── Dropdown "Chức năng" trên toolbar ────────────────────── */
+.toolbar-menu{position:relative;display:inline-flex}
+.toolbar-menu-list{position:absolute;top:calc(100% + 5px);left:0;min-width:210px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(14,90,42,.16);padding:6px;display:none;flex-direction:column;gap:2px;z-index:600}
+.toolbar-menu.open .toolbar-menu-list{display:flex}
+.toolbar-menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 11px;border:none;background:transparent;border-radius:8px;font-size:12.5px;font-weight:500;font-family:inherit;color:var(--text);cursor:pointer;text-align:left;transition:background .12s}
+.toolbar-menu-item:hover{background:var(--upm-green-pale);color:var(--upm-green)}
+.toolbar-menu-item svg{flex-shrink:0}
+.toolbar-menu-item.danger:hover{background:#fee2e2;color:var(--danger)}
+
+/* ── Chấm màu nhóm (đồng bộ sidebar với "Lọc đăng nhập") ──── */
+.group-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.group-dot.gc-seeding{background:#10b981}
+.group-dot.gc-ads{background:#f97316}
+.group-dot.gc-bm{background:#8b5cf6}
+.group-dot.gc-khachhang{background:#3b82f6}
+.group-dot.gc-canhan{background:#64748b}
+.group-dot.gc-khac{background:#94a3b8}
+.group-dot.gc-custom{background:#d946ef}
+
+/* ── Danh sách tiện ích UP Media trên Store ───────────────── */
+.upm-exts-list{list-style:none;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto}
+.upm-ext-item{display:flex;align-items:center;gap:11px;padding:11px 12px;background:var(--bg);border:1px solid var(--border);border-radius:12px}
+.upm-ext-icon{font-size:22px;flex-shrink:0}
+.upm-ext-info{flex:1;min-width:0}
+.upm-ext-name{font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:7px}
+.upm-ext-type{font-size:10px;font-weight:600;color:var(--upm-green);background:var(--upm-green-pale);padding:1px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}
+.upm-ext-desc{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+.upm-ext-open{flex-shrink:0}
+.upm-exts-empty{font-size:12px;color:var(--muted);text-align:center;padding:16px}

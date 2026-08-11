@@ -336,6 +336,17 @@ ipcMain.handle('pick-user-data-folder', async () => {
 });
 
 ipcMain.handle('get-version', async () => app.getVersion());
+
+// Mở link ngoài bằng trình duyệt mặc định (dùng cho danh sách tiện ích UP Media trên Store)
+ipcMain.handle('open-external', async (_, url) => {
+  try {
+    if (!/^https:\/\//i.test(String(url || ''))) return { success: false, error: 'URL không hợp lệ' };
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
 ipcMain.handle('get-settings', async () => configStore.getConfig().settings || {});
 
 ipcMain.handle('get-groups', async () => configStore.getGroups());

@@ -11,6 +11,13 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.53', items: [
+    'Thiết kế lại pop-up "Tạo tài khoản Chrome mới": rộng & thoáng hơn, hết chồng chéo',
+    'Gộp "Tạo tất cả shortcut / Tối ưu dung lượng / Đóng Chrome" vào menu "Chức năng" cho gọn toolbar',
+    'Phím tắt chuyển thành icon bên trái danh sách Chrome — rê chuột vào để xem nhanh; thêm Ctrl+~ mở bảng phím tắt',
+    'Thêm icon "Tiện ích UP Media trên Store" — danh sách extension chính thức (mở bằng trình duyệt)',
+    'Đồng bộ giao diện mục "Lọc nhóm" theo "Lọc đăng nhập" cho nhất quán',
+  ] },
   { v: '1.8.52', items: [
     'Gõ tên để tìm/tạo nhanh nhóm & danh mục con (cả thẻ lẫn khi thêm tài khoản): khớp thì chọn ngay, không khớp thì bấm "Tạo mới" là tự lưu & đồng bộ',
     'Bấm vào vùng trắng của thẻ profile để mở Chrome (không cần bấm đúng nút "Mở")',
@@ -242,7 +249,9 @@ function renderSidebar() {
 
   const allEl = document.createElement('div');
   allEl.className = `sidebar-item${!activeSidebarFilter ? ' active' : ''}`;
-  allEl.innerHTML = `<span>Tất cả</span><span class="sidebar-count">${allProfiles.length}</span>`;
+  allEl.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Tất cả</span><span class="sidebar-count">${allProfiles.length}</span>`;
   allEl.addEventListener('click', () => { activeSidebarFilter = null; clearSearchInput(); renderSidebar(); applyFilter(); });
   sg.appendChild(allEl);
 
@@ -250,7 +259,9 @@ function renderSidebar() {
   const noGroupActive = activeSidebarFilter?.type==='nogroup';
   const noGroupEl = document.createElement('div');
   noGroupEl.className = `sidebar-item${noGroupActive ? ' active' : ''}`;
-  noGroupEl.innerHTML = `<span style="font-style:italic;color:var(--muted)">Chưa có nhóm</span><span class="sidebar-count">${noGroupCnt}</span>`;
+  noGroupEl.innerHTML = `
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+    <span>Chưa có nhóm</span><span class="sidebar-count">${noGroupCnt}</span>`;
   noGroupEl.addEventListener('click', () => { activeSidebarFilter = { type:'nogroup' }; clearSearchInput(); renderSidebar(); applyFilter(); });
   sg.appendChild(noGroupEl);
 
@@ -262,10 +273,8 @@ function renderSidebar() {
     const gEl = document.createElement('div');
     gEl.className = `sidebar-item${isGroupActive ? ' active' : ''}`;
     gEl.innerHTML = `
-      <span class="group-tag gc-${groupClass(g)}" style="padding:1px 6px;font-size:10px">${eh(g)}</span>
-      <span style="flex:1"></span>
-      <span class="sidebar-count">${cnt}</span>
-    `;
+      <span class="group-dot gc-${groupClass(g)}"></span>
+      <span>${eh(g)}</span><span class="sidebar-count">${cnt}</span>`;
     gEl.addEventListener('click', () => { activeSidebarFilter = { type:'group', group:g }; clearSearchInput(); renderSidebar(); applyFilter(); });
     sg.appendChild(gEl);
 
@@ -1999,13 +2008,24 @@ const SHORTCUTS = [
   { key: 'Ctrl + Q', desc: 'Mở / đóng Cài đặt' },
   { key: 'Ctrl + R', desc: 'Quét lại danh sách' },
   { key: 'Ctrl + D', desc: 'Xóa mọi bộ lọc / đóng mọi pop-up' },
+  { key: 'Ctrl + ~', desc: 'Mở bảng phím tắt' },
   { key: 'Esc', desc: 'Đóng mọi pop-up đang hiển thị' },
 ];
+function renderShortcutsInto(el) {
+  if (el) el.innerHTML = SHORTCUTS.map(s =>
+    `<li class="shortcut-row"><kbd>${eh(s.key)}</kbd><span>${eh(s.desc)}</span></li>`).join('');
+}
 
 document.addEventListener('keydown', e => {
   // Esc: đóng mọi pop-up đang mở
   if (e.key === 'Escape') {
     if (closeAllModals()) e.preventDefault();
+    return;
+  }
+  // Ctrl + ` (hoặc Ctrl + ~): mở bảng phím tắt (có Shift nên xử lý trước)
+  if ((e.ctrlKey || e.metaKey) && (e.key === '`' || e.key === '~')) {
+    e.preventDefault();
+    toggleModalById('modal-shortcuts', openShortcutsModal);
     return;
   }
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
@@ -2056,12 +2076,49 @@ document.addEventListener('keydown', e => {
 
 // ── Bảng phím tắt ─────────────────────────────────────────
 function openShortcutsModal() {
-  const list = document.getElementById('shortcuts-list');
-  if (list) list.innerHTML = SHORTCUTS.map(s =>
-    `<li class="shortcut-row"><kbd>${eh(s.key)}</kbd><span>${eh(s.desc)}</span></li>`).join('');
+  renderShortcutsInto(document.getElementById('shortcuts-list'));
   document.getElementById('modal-shortcuts').classList.remove('hidden');
 }
 function closeShortcutsModal() { document.getElementById('modal-shortcuts').classList.add('hidden'); }
+
+// ── Danh sách tiện ích UP Media trên Store ────────────────
+// Thêm tiện ích/tài liệu mới về sau: chỉ cần thêm 1 phần tử vào mảng này.
+const UPMEDIA_EXTENSIONS = [
+  {
+    name: 'UP Media - Cookie Facebook',
+    desc: 'Lấy / nhập cookie Facebook (kể cả httpOnly như xs) — công cụ nội bộ UP Media.',
+    type: 'Extension',
+    url: 'https://chromewebstore.google.com/detail/up-media-cookie-facebook/bkdigiggjmpomfoeafbbgpipjennbhen?authuser=0&hl=vi',
+  },
+];
+function openUpmExtsModal() {
+  const list = document.getElementById('upm-exts-list');
+  if (list) {
+    if (!UPMEDIA_EXTENSIONS.length) {
+      list.innerHTML = '<li class="upm-exts-empty">Chưa có tiện ích nào.</li>';
+    } else {
+      list.innerHTML = UPMEDIA_EXTENSIONS.map((e, i) => `
+        <li class="upm-ext-item">
+          <div class="upm-ext-icon">🧩</div>
+          <div class="upm-ext-info">
+            <div class="upm-ext-name">${eh(e.name)} <span class="upm-ext-type">${eh(e.type||'Extension')}</span></div>
+            <div class="upm-ext-desc">${eh(e.desc||'')}</div>
+          </div>
+          <button class="btn btn-primary btn-sm upm-ext-open" data-idx="${i}">Mở</button>
+        </li>`).join('');
+      list.querySelectorAll('.upm-ext-open').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const e = UPMEDIA_EXTENSIONS[parseInt(btn.dataset.idx, 10)];
+          if (!e) return;
+          const r = await window.app.openExternal(e.url);
+          if (!r.success) showToast(r.error || 'Không mở được liên kết', 'error');
+        });
+      });
+    }
+  }
+  document.getElementById('modal-upm-exts').classList.remove('hidden');
+}
+function closeUpmExtsModal() { document.getElementById('modal-upm-exts').classList.add('hidden'); }
 
 // Settings modal
 async function refreshCookieStoreStatus(settings) {
@@ -2223,6 +2280,28 @@ document.getElementById('btn-shortcuts').addEventListener('click', openShortcuts
 document.getElementById('modal-shortcuts-close').addEventListener('click', closeShortcutsModal);
 document.getElementById('btn-close-shortcuts').addEventListener('click', closeShortcutsModal);
 document.getElementById('modal-shortcuts').addEventListener('click', e => { if(e.target===e.currentTarget) closeShortcutsModal(); });
+// Popover phím tắt hiện khi di chuột vào icon
+renderShortcutsInto(document.getElementById('shortcuts-hover-list'));
+
+// Tiện ích UP Media trên Store
+document.getElementById('btn-upm-exts').addEventListener('click', openUpmExtsModal);
+document.getElementById('modal-upm-exts-close').addEventListener('click', closeUpmExtsModal);
+document.getElementById('btn-close-upm-exts').addEventListener('click', closeUpmExtsModal);
+document.getElementById('modal-upm-exts').addEventListener('click', e => { if(e.target===e.currentTarget) closeUpmExtsModal(); });
+
+// Dropdown "Chức năng" trên toolbar
+(function initFuncMenu(){
+  const wrap = document.getElementById('func-menu-wrap');
+  const btn = document.getElementById('btn-func-menu');
+  const list = document.getElementById('func-menu-list');
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    wrap.classList.toggle('open');
+  });
+  // Bấm 1 mục xong thì đóng menu (các nút bên trong vẫn giữ handler riêng)
+  list.addEventListener('click', () => wrap.classList.remove('open'));
+  document.addEventListener('click', () => wrap.classList.remove('open'));
+})();
 
 document.getElementById('btn-pick-folder').addEventListener('click', async () => {
   const chosen = await window.app.pickUserDataFolder();
