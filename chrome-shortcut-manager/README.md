@@ -29,6 +29,16 @@ App desktop Windows (Electron) quản lý hàng chục–trăm Chrome profile tr
 
 ## Dành cho Developer
 
+### Bắt đầu nâng cấp — đọc gì trước (repo tự đủ, không cần nguồn ngoài)
+1. **`CLAUDE.md` — Mục 0 (TRẠNG THÁI CHUẨN)** trước tiên: điều gì còn hiệu lực / đã gỡ, và các "nguồn chân lý".
+2. **`preload.js`** = danh sách IPC API đầy đủ (`window.app.*` ↔ `ipcMain.handle` trong `main.js`).
+3. **`HANDOFF_V2.md`** (bàn giao + định hướng) và **`CHANGELOG.md`** (lịch sử theo bản).
+4. **Quy trình phát hành:** `.claude/skills/ship-upmedia/SKILL.md`. Lập kế hoạch: `.claude/skills/plan-product/SKILL.md`.
+
+### Kiểm thử
+- **Không có test tự động.** Sau khi sửa, chạy `node --check` cho từng file JS đã đổi.
+- Nhiều tính năng (chạy Admin/UAC, đọc cookie SQLite, ghi registry policy, chống mở trùng qua `wmic`) **chỉ verify được trên Windows + Chrome thật** — build qua CI rồi nhờ owner chạy thử & gửi lại kết quả.
+
 ### Cài đặt & chạy
 ```bash
 npm install

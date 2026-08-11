@@ -2,7 +2,9 @@
 # Chrome Manager by UP Media
 
 > Dành cho nhân sự UP Media Agency
-> Phiên bản tài liệu: tháng 6/2026
+> Phiên bản tài liệu: tháng 6/2026 (mô tả bản ~v1.8.4x)
+>
+> ⚠️ **Lưu ý:** Bản hướng dẫn này CHƯA cập nhật các tính năng mới từ v1.8.51+ (tự chạy quyền Admin, bộ phím tắt + Ctrl+~, menu "Chức năng", 2 icon trên header: Phím tắt & Tiện ích UP Media, typeahead gõ-để-tạo nhóm/danh mục con, bấm vùng trắng thẻ để mở Chrome). Xem `CHANGELOG.md` để biết đầy đủ; tài liệu này sẽ được cập nhật trong một lượt riêng.
 
 ---
 
