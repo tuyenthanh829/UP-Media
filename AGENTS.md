@@ -2,6 +2,8 @@
 
 > File này là **điểm vào cho mọi AI agent KHÔNG phải Claude Code** (Codex, Cursor…).
 > Claude Code tự đọc `CLAUDE.md`; các agent khác đọc file này. **Cả hai cùng trỏ về một bộ quy trình** — đừng nhân bản nội dung, hãy đọc đúng nguồn chân lý bên dưới.
+>
+> Đây là **bản chính**. Có 1 bản rút gọn tại `chrome-shortcut-manager/AGENTS.md` (để agent tự nạp khi mở thẳng thư mục app) — sửa file này thì rà lại bản đó cho khớp.
 
 ## Đọc trước khi làm bất cứ việc gì (nguồn chân lý)
 1. **`CLAUDE.md` — Mục 0 (TRẠNG THÁI CHUẨN):** điều gì còn hiệu lực / đã gỡ. Khi mâu thuẫn, Mục 0 + 13 + 14 là mới nhất và ĐÚNG.
