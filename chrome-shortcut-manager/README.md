@@ -2,7 +2,7 @@
 
 App desktop Windows (Electron) quản lý hàng chục–trăm Chrome profile trên 1 máy: tạo shortcut, phân nhóm, kiểm tra đăng nhập mạng xã hội, quản lý tiện ích, xuất/nhập cấu hình và nhiều hơn nữa.
 
-> Phiên bản hiện tại: **v1.8.54+** — xem `CHANGELOG.md` để biết lịch sử đầy đủ.
+> Phiên bản hiện tại: **v1.8.56** — xem `CHANGELOG.md` để biết lịch sử đầy đủ.
 
 ## Tính năng chính
 

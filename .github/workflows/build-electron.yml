@@ -50,6 +50,7 @@ jobs:
           Write-Host "Version bumped to $newVer"
 
       - name: Commit version bump
+        id: commit
         shell: pwsh
         run: |
           git config user.email "noreply@anthropic.com"
@@ -57,6 +58,10 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: bump version to v${{ steps.bump.outputs.version }} [skip ci]"
           git push origin main
+          # Ghi lại SHA commit bump trên main để tag Release trỏ ĐÚNG vào đây
+          $sha = (git rev-parse HEAD).Trim()
+          echo "sha=$sha" >> $env:GITHUB_OUTPUT
+          Write-Host "Bump commit SHA: $sha"
 
       # ── 4. Build ──────────────────────────────────────────────
       - name: Install dependencies
@@ -90,6 +95,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.bump.outputs.version }}
+          # BẮT BUỘC: trỏ tag vào commit bump trên main. Nếu bỏ, GitHub gắn tag
+          # vào HEAD của default branch (đang là 1 nhánh claude/*) → tag sai commit.
+          target_commitish: ${{ steps.commit.outputs.sha }}
           name: "Chrome Manager by UP Media v${{ steps.bump.outputs.version }}"
           body: |
             ## 🚀 Chrome Manager by UP Media v${{ steps.bump.outputs.version }}
