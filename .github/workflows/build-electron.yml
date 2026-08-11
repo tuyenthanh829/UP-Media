@@ -3,7 +3,15 @@ name: Build Chrome Manager
 on:
   push:
     branches: [main]
-  workflow_dispatch:
+    # Không build khi push CHỈ đụng các file không ảnh hưởng phần mềm
+    # (tài liệu, skill, cấu hình CI...). Nếu push có kèm file code thì vẫn build.
+    paths-ignore:
+      - '**/*.md'
+      - '.claude/**'
+      - '.github/**'
+      - '.gitignore'
+      - 'LICENSE'
+  workflow_dispatch:   # vẫn build tay được từ tab Actions khi cần
 
 permissions:
   contents: write  # cần để tạo Release và commit version bump
