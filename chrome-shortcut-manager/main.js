@@ -196,6 +196,24 @@ function isChromeRunningForProfile(profileDirectory) {
   });
 }
 
+// Lấy tập hợp các profile-directory hiện đang được Chrome mở (một lần gọi wmic).
+// Dùng để không mở chồng Chrome đã mở sẵn (tránh mở trùng qua mỗi lần thao tác / reload).
+function getRunningProfileDirs() {
+  return new Promise(resolve => {
+    exec('wmic process where "name=\'chrome.exe\'" get CommandLine /format:list', { windowsHide: true }, (err, stdout) => {
+      const set = new Set();
+      if (err || !stdout) { resolve(set); return; }
+      const re = /--profile-directory=("([^"]+)"|([^\s"]+))/gi;
+      let m;
+      while ((m = re.exec(stdout)) !== null) {
+        const dir = (m[2] || m[3] || '').trim();
+        if (dir) set.add(dir.toLowerCase());
+      }
+      resolve(set);
+    });
+  });
+}
+
 ipcMain.handle('delete-chrome-profile', async (_, profilePath, profileDirectory, displayName) => {
   const running = await isChromeRunningForProfile(profileDirectory);
   if (running) {
@@ -259,8 +277,12 @@ ipcMain.handle('delete-shortcut', async (_, shortcutName) => {
   }
 });
 
-ipcMain.handle('open-profile', async (_, profileDirectory) => {
+ipcMain.handle('open-profile', async (_, profileDirectory, opts) => {
   try {
+    // Nếu Chrome đã mở sẵn profile này thì không mở chồng lần 2 (trừ khi ép mở)
+    if (!(opts && opts.force) && await isChromeRunningForProfile(profileDirectory)) {
+      return { success: true, alreadyOpen: true };
+    }
     const config = configStore.getConfig();
     const userDataPath = config.settings?.chromeUserDataPath || null;
     shortcuts.openProfile(profileDirectory, userDataPath);
@@ -268,6 +290,11 @@ ipcMain.handle('open-profile', async (_, profileDirectory) => {
   } catch (err) {
     return { success: false, error: err.message === 'CHROME_NOT_FOUND' ? 'Không tìm thấy Google Chrome.' : 'Không mở được profile.' };
   }
+});
+
+// Trả về danh sách profile-directory đang được Chrome mở (chữ thường)
+ipcMain.handle('get-running-profiles', async () => {
+  return Array.from(await getRunningProfileDirs());
 });
 
 ipcMain.handle('open-profile-url', async (_, profileDirectory, url) => {
@@ -284,12 +311,14 @@ ipcMain.handle('open-profile-url', async (_, profileDirectory, url) => {
 ipcMain.handle('open-profiles-batch', async (_, profileDirectories) => {
   const config = configStore.getConfig();
   const userDataPath = config.settings?.chromeUserDataPath || null;
-  let ok = 0, fail = 0;
+  const running = await getRunningProfileDirs();   // bỏ qua profile đã mở sẵn
+  let ok = 0, fail = 0, skipped = 0;
   for (const dir of profileDirectories) {
+    if (running.has(String(dir).toLowerCase())) { skipped++; continue; }
     try { shortcuts.openProfile(dir, userDataPath); ok++; await new Promise(r => setTimeout(r, 350)); }
     catch { fail++; }
   }
-  return { success: true, ok, fail };
+  return { success: true, ok, fail, skipped };
 });
 
 ipcMain.handle('check-shortcut-exists', async (_, name) => shortcuts.shortcutExists(name));

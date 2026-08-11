@@ -11,6 +11,15 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.52', items: [
+    'Gõ tên để tìm/tạo nhanh nhóm & danh mục con (cả thẻ lẫn khi thêm tài khoản): khớp thì chọn ngay, không khớp thì bấm "Tạo mới" là tự lưu & đồng bộ',
+    'Bấm vào vùng trắng của thẻ profile để mở Chrome (không cần bấm đúng nút "Mở")',
+    'Khi quét lại / mở hàng loạt: bỏ qua các Chrome đang mở sẵn, không mở chồng cửa sổ trùng',
+    'Esc hoặc Ctrl+D đóng mọi pop-up đang mở',
+    'Thêm phím tắt: Ctrl+O (đổi kiểu hiển thị), Ctrl+G (quản lý nhóm), Ctrl+T (tối ưu dung lượng), Ctrl+L (load Social)',
+    'Thêm nút "Phím tắt" hiển thị danh sách phím tắt',
+    'Thanh cuộn danh sách Chrome dày hơn cho dễ kéo',
+  ] },
   { v: '1.8.51', items: [
     'Tự chạy dưới quyền Administrator khi khởi động (khắc phục lỗi thỉnh thoảng không gõ được tiếng Việt/Unikey) — có thể tắt trong Cài đặt',
     'Thêm phím tắt: Ctrl+F (tìm kiếm), Ctrl+N (thêm Chrome), Ctrl+D (xóa mọi bộ lọc), Ctrl+Q (Cài đặt), Ctrl+R (quét lại)',
@@ -456,6 +465,16 @@ function updateSocialBadgesAll() {
   });
 }
 
+// ── Mở profile từ UI (bump lượt mở + báo nếu đã mở sẵn) ────
+async function openProfileFromUI(dir, card) {
+  bumpOpenCount(dir);
+  if (card) { const oc = card.querySelector('.row-opens'); if (oc) oc.textContent = getOpenCount(dir); }
+  const res = await window.app.openProfile(dir);
+  if (res.success) showToast(res.alreadyOpen ? 'Chrome profile này đang mở sẵn — không mở thêm cửa sổ mới.' : 'Đang mở Chrome profile...', res.alreadyOpen ? 'warning' : 'info');
+  else showToast(res.error, 'error');
+  return res;
+}
+
 // ── Avatar ────────────────────────────────────────────────
 async function buildAvatarEl(profile) {
   const ac = avatarClass(profile.groups);
@@ -495,6 +514,72 @@ function renderTagsInto(container, profile, card) {
   });
 }
 
+// ── Typeahead cho danh mục (nhóm / danh mục con) ──────────
+// Thêm 1 ô nhập text lên đầu menu: gõ để lọc mục khớp, Enter/click để chọn,
+// nếu không khớp mục nào → hiện nút "Tạo mới" gọi onCreate.
+function addMenuTypeahead(menu, { placeholder, items, onCreate }) {
+  const box = document.createElement('div');
+  box.className = 'menu-typeahead';
+  box.addEventListener('click', e => e.stopPropagation());
+  box.addEventListener('mousedown', e => e.stopPropagation());
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'menu-typeahead-input';
+  input.placeholder = placeholder || 'Gõ để tìm hoặc tạo mới...';
+  input.autocomplete = 'off';
+
+  const createBtn = document.createElement('button');
+  createBtn.type = 'button';
+  createBtn.className = 'menu-typeahead-create';
+  createBtn.style.display = 'none';
+
+  box.appendChild(input);
+  box.appendChild(createBtn);
+  menu.insertBefore(box, menu.firstChild);
+
+  function refresh() {
+    const q = normalizeSearch(input.value);
+    const raw = input.value.trim();
+    let exact = false, anyVisible = false;
+    items.forEach(it => {
+      const nn = normalizeSearch(it.name);
+      const match = !q || nn.includes(q);
+      it.container.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+      if (nn === q && q) exact = true;
+    });
+    if (raw && !exact) {
+      createBtn.style.display = '';
+      createBtn.textContent = `➕ Tạo mới "${raw}"`;
+    } else {
+      createBtn.style.display = 'none';
+    }
+    if (!anyVisible && !raw) items.forEach(it => it.container.style.display = '');
+  }
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const raw = input.value.trim();
+      if (!raw) return;
+      const hit = items.find(it => normalizeSearch(it.name) === normalizeSearch(raw));
+      if (hit) hit.pick();
+      else onCreate(raw);
+    }
+  });
+  createBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    const raw = input.value.trim();
+    if (raw) onCreate(raw);
+  });
+  // Không tự focus ở đây (tránh chiếm focus của ô danh mục con khi rebuild);
+  // focus được xử lý khi mở dropdown cha.
+  return input;
+}
+
 function buildGroupTags(profile, card) {
   const row = card.querySelector('.groups-row');
   row.innerHTML = '';
@@ -517,6 +602,7 @@ function buildGroupTags(profile, card) {
   menu.className = 'group-dropdown-menu';
   menu.style.cssText = 'max-height:300px;overflow-y:auto;min-width:170px';
 
+  const menuItems = [];
   allGroups.forEach(g => {
     const selected = (profile.groups || []).includes(g);
     const subs = allGroupSubs[g] || [];
@@ -531,62 +617,77 @@ function buildGroupTags(profile, card) {
     mainRow.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;margin:0';
     mainRow.innerHTML = `<span class="check">${selected ? '✓' : ''}</span><span style="flex:1">${eh(g)}</span>`;
 
-    let subPanel = null;
-    if (subs.length) {
-      const expandArrow = document.createElement('span');
-      expandArrow.style.cssText = 'font-size:10px;opacity:.45;padding:0 2px;transition:transform .15s';
-      expandArrow.textContent = selected ? '▾' : '▸';
+    // Panel danh mục con — hiện khi nhóm đang được chọn (kể cả khi chưa có sub nào, để tạo sub mới)
+    const subPanel = document.createElement('div');
+    subPanel.style.cssText = `display:${selected ? 'block' : 'none'};padding:3px 8px 6px 28px;background:var(--bg);border-top:1px solid var(--border)`;
 
-      subPanel = document.createElement('div');
-      subPanel.style.cssText = `display:${selected ? 'block' : 'none'};padding:3px 8px 5px 28px;background:var(--bg);border-top:1px solid var(--border)`;
-
-      subs.forEach(sub => {
-        const lbl = document.createElement('label');
-        lbl.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:12px;user-select:none;font-weight:400;color:var(--text)';
-        // Prevent label click from bubbling and closing dropdown
-        lbl.addEventListener('mousedown', e => e.stopPropagation());
-        lbl.addEventListener('click', e => e.stopPropagation());
-
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = ((profile.subGroups || {})[g] || []).includes(sub);
-        cb.style.cssText = 'cursor:pointer;accent-color:var(--primary)';
-        cb.addEventListener('change', async () => {
-          if (!profile.groups.includes(g)) {
-            profile.groups = [...(profile.groups || []), g];
-            mainRow.classList.add('selected');
-            mainRow.querySelector('.check').textContent = '✓';
-          }
-          const current = (profile.subGroups || {})[g] || [];
-          profile.subGroups = {
-            ...(profile.subGroups || {}),
-            [g]: cb.checked ? [...current, sub] : current.filter(x => x !== sub)
-          };
-          await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
-          // Update only tags, keep dropdown open
-          const tagsWrap = card.querySelector('.tags-wrap');
-          if (tagsWrap) renderTagsInto(tagsWrap, profile, card);
-          refreshAvatarInCard(card, profile);
-        });
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(sub));
-        subPanel.appendChild(lbl);
+    function addSubCheckbox(sub) {
+      const lbl = document.createElement('label');
+      lbl.className = 'sub-check-lbl';
+      lbl.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:12px;user-select:none;font-weight:400;color:var(--text)';
+      lbl.addEventListener('mousedown', e => e.stopPropagation());
+      lbl.addEventListener('click', e => e.stopPropagation());
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = ((profile.subGroups || {})[g] || []).includes(sub);
+      cb.style.cssText = 'cursor:pointer;accent-color:var(--primary)';
+      cb.addEventListener('change', async () => {
+        if (!profile.groups.includes(g)) {
+          profile.groups = [...(profile.groups || []), g];
+          mainRow.classList.add('selected');
+          mainRow.querySelector('.check').textContent = '✓';
+        }
+        const current = (profile.subGroups || {})[g] || [];
+        profile.subGroups = {
+          ...(profile.subGroups || {}),
+          [g]: cb.checked ? [...current, sub] : current.filter(x => x !== sub)
+        };
+        await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
+        const tagsWrap = card.querySelector('.tags-wrap');
+        if (tagsWrap) renderTagsInto(tagsWrap, profile, card);
+        refreshAvatarInCard(card, profile);
       });
-
-      // Toggle expand on arrow click
-      expandArrow.addEventListener('click', e => {
-        e.stopPropagation();
-        const show = subPanel.style.display === 'none';
-        subPanel.style.display = show ? 'block' : 'none';
-        expandArrow.textContent = show ? '▾' : '▸';
-      });
-
-      mainRow.appendChild(expandArrow);
-      item.appendChild(mainRow);
-      item.appendChild(subPanel);
-    } else {
-      item.appendChild(mainRow);
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(sub));
+      // chèn trước ô typeahead của sub
+      subPanel.insertBefore(lbl, subPanel.lastChild);
+      return { container: lbl, name: sub, pick: () => cb.click() };
     }
+
+    const subItems = subs.map(addSubCheckbox);
+
+    // Typeahead cho danh mục con: gõ để lọc / tạo sub mới → đồng bộ vào phần mềm
+    const subMenu = document.createElement('div');
+    subPanel.appendChild(subMenu);
+    addMenuTypeahead(subMenu, {
+      placeholder: 'Danh mục con: gõ để tìm/tạo...',
+      items: subItems,
+      onCreate: async (subName) => {
+        allGroupSubs[g] = Array.from(new Set([...(allGroupSubs[g] || []), subName]));
+        await window.app.saveGroupSubs(allGroupSubs);
+        if (!profile.groups.includes(g)) profile.groups = [...(profile.groups || []), g];
+        const cur = (profile.subGroups || {})[g] || [];
+        profile.subGroups = { ...(profile.subGroups || {}), [g]: Array.from(new Set([...cur, subName])) };
+        await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
+        renderSidebar();
+        buildGroupTags(profile, card);
+        refreshAvatarInCard(card, profile);
+        showToast(`Đã tạo & gán danh mục con "${subName}"`, 'success');
+      },
+    });
+
+    const expandArrow = document.createElement('span');
+    expandArrow.style.cssText = 'font-size:10px;opacity:.45;padding:0 2px;transition:transform .15s';
+    expandArrow.textContent = selected ? '▾' : '▸';
+    expandArrow.addEventListener('click', e => {
+      e.stopPropagation();
+      const show = subPanel.style.display === 'none';
+      subPanel.style.display = show ? 'block' : 'none';
+      expandArrow.textContent = show ? '▾' : '▸';
+    });
+    mainRow.appendChild(expandArrow);
+    item.appendChild(mainRow);
+    item.appendChild(subPanel);
 
     // Click main row → toggle group membership
     mainRow.addEventListener('click', async e => {
@@ -603,7 +704,24 @@ function buildGroupTags(profile, card) {
       refreshAvatarInCard(card, profile);
     });
 
+    menuItems.push({ container: item, name: g, pick: () => mainRow.click() });
     menu.appendChild(item);
+  });
+
+  // Typeahead cho nhóm cha: gõ để lọc / tạo nhóm mới → đồng bộ vào phần mềm
+  addMenuTypeahead(menu, {
+    placeholder: 'Nhóm: gõ để tìm hoặc tạo mới...',
+    items: menuItems,
+    onCreate: async (name) => {
+      if (!allGroups.includes(name)) { allGroups = [...allGroups, name]; await window.app.saveGroups(allGroups); }
+      profile.groups = Array.from(new Set([...(profile.groups || []), name]));
+      await window.app.saveProfileConfig(profile.profileDirectory, { groups: profile.groups, subGroups: profile.subGroups });
+      menu.classList.remove('open');
+      renderSidebar();
+      buildGroupTags(profile, card);
+      refreshAvatarInCard(card, profile);
+      showToast(`Đã tạo & gán nhóm "${name}"`, 'success');
+    },
   });
 
   addBtn.addEventListener('click', e => {
@@ -612,7 +730,11 @@ function buildGroupTags(profile, card) {
     menu.classList.toggle('open');
     // Bump card z-index so dropdown appears above sibling cards
     const parentCard = card;
-    if (willOpen) parentCard.classList.add('dropdown-open');
+    if (willOpen) {
+      parentCard.classList.add('dropdown-open');
+      const ta = menu.querySelector('.menu-typeahead-input');
+      if (ta) setTimeout(() => { try { ta.focus(); } catch {} }, 20);
+    }
   });
   wrap.appendChild(addBtn); wrap.appendChild(menu);
   row.appendChild(wrap);
@@ -809,10 +931,8 @@ async function buildCard(profile) {
   });
 
   card.querySelector('.btn-open').addEventListener('click', async e => {
-    bumpOpenCount(e.currentTarget.dataset.dir);
-    const res = await window.app.openProfile(e.currentTarget.dataset.dir);
-    if (res.success) showToast('Đang mở Chrome profile...','info');
-    else showToast(res.error,'error');
+    e.stopPropagation();
+    openProfileFromUI(e.currentTarget.dataset.dir, card);
   });
 
   card.querySelector('.btn-history').addEventListener('click', async e => {
@@ -866,6 +986,13 @@ async function buildCard(profile) {
       updateStats(allProfiles); renderSidebar();
       showToast(`Đã xóa tài khoản "${displayName}"`,'warning');
     } else showToast(res.error,'error');
+  });
+
+  // Bấm vào vùng trắng của thẻ (không phải nút/ô nhập/nhóm) để mở Chrome
+  card.classList.add('card-clickable');
+  card.addEventListener('click', e => {
+    if (e.target.closest('button, input, textarea, select, a, label, kbd, .group-dropdown, .groups-row, .account-badges, .card-actions, .card-form, .cache-info, .notes-section, .card-status')) return;
+    openProfileFromUI(profile.profileDirectory, card);
   });
 
   return card;
@@ -1391,13 +1518,7 @@ function buildRow(profile) {
   // Bấm vào bất kỳ đâu trên hàng để mở Chrome ngay
   row.classList.add('clickable');
   row.title = 'Bấm để mở Chrome profile này';
-  row.addEventListener('click', async () => {
-    bumpOpenCount(profile.profileDirectory);
-    row.querySelector('.row-opens').textContent = getOpenCount(profile.profileDirectory);
-    const res = await window.app.openProfile(profile.profileDirectory);
-    if (res.success) showToast('Đang mở Chrome profile...','info');
-    else showToast(res.error,'error');
-  });
+  row.addEventListener('click', () => openProfileFromUI(profile.profileDirectory, row));
 
   return row;
 }
@@ -1433,7 +1554,10 @@ async function openAllFiltered() {
   dirs.forEach(d => bumpOpenCount(d));
   const res = await window.app.openProfilesBatch(dirs);
   btn.disabled=false;
-  showToast(`Đã mở ${res.ok} profile${res.fail?`, ${res.fail} lỗi`:''}`, res.fail?'warning':'success');
+  const parts = [`Đã mở ${res.ok} profile`];
+  if (res.skipped) parts.push(`${res.skipped} đã mở sẵn (bỏ qua)`);
+  if (res.fail) parts.push(`${res.fail} lỗi`);
+  showToast(parts.join(', '), res.fail ? 'warning' : 'success');
 }
 
 // ── Create all shortcuts ───────────────────────────────────
@@ -1706,28 +1830,43 @@ function buildNewProfileGroupsUI() {
     tag.appendChild(removeBtn);
     entry.appendChild(tag);
 
-    // Multi-select checkboxes for subs
-    if (subs.length) {
-      const subWrap = document.createElement('div');
-      subWrap.className = 'new-profile-sub-wrap';
-      subs.forEach(sub => {
-        const label = document.createElement('label');
-        label.className = 'new-profile-sub-check';
-        const checked = selectedSubs.includes(sub);
-        label.innerHTML = `<input type="checkbox" value="${ea(sub)}" ${checked?'checked':''}/> ${eh(sub)}`;
-        label.querySelector('input').addEventListener('change', e => {
-          if (!newProfileSubGroups[g]) newProfileSubGroups[g] = [];
-          if (e.target.checked) newProfileSubGroups[g].push(sub);
-          else newProfileSubGroups[g] = newProfileSubGroups[g].filter(x=>x!==sub);
-          // Update tag text
-          tag.childNodes[0].textContent = newProfileSubGroups[g].length
-            ? `${g} · ${newProfileSubGroups[g].join(' · ')} `
-            : `${g} `;
-        });
-        subWrap.appendChild(label);
-      });
-      entry.appendChild(subWrap);
+    // Danh mục con: checkbox chọn sẵn + ô typeahead để tìm/tạo sub mới
+    const subWrap = document.createElement('div');
+    subWrap.className = 'new-profile-sub-wrap';
+    const subItems = [];
+    function updateTagText() {
+      tag.childNodes[0].textContent = (newProfileSubGroups[g] || []).length
+        ? `${g} · ${newProfileSubGroups[g].join(' · ')} ` : `${g} `;
     }
+    subs.forEach(sub => {
+      const label = document.createElement('label');
+      label.className = 'new-profile-sub-check';
+      const checked = selectedSubs.includes(sub);
+      label.innerHTML = `<input type="checkbox" value="${ea(sub)}" ${checked?'checked':''}/> ${eh(sub)}`;
+      const cb = label.querySelector('input');
+      cb.addEventListener('change', e => {
+        if (!newProfileSubGroups[g]) newProfileSubGroups[g] = [];
+        if (e.target.checked) newProfileSubGroups[g].push(sub);
+        else newProfileSubGroups[g] = newProfileSubGroups[g].filter(x=>x!==sub);
+        updateTagText();
+      });
+      subWrap.appendChild(label);
+      subItems.push({ container: label, name: sub, pick: () => cb.click() });
+    });
+    const subMenu = document.createElement('div');
+    subWrap.appendChild(subMenu);
+    addMenuTypeahead(subMenu, {
+      placeholder: 'Danh mục con: gõ để tìm/tạo...',
+      items: subItems,
+      onCreate: async (subName) => {
+        allGroupSubs[g] = Array.from(new Set([...(allGroupSubs[g] || []), subName]));
+        await window.app.saveGroupSubs(allGroupSubs);
+        newProfileSubGroups[g] = Array.from(new Set([...(newProfileSubGroups[g] || []), subName]));
+        renderSidebar();
+        buildNewProfileGroupsUI();
+      },
+    });
+    entry.appendChild(subWrap);
 
     row.appendChild(entry);
   });
@@ -1740,7 +1879,8 @@ function buildNewProfileGroupsUI() {
   btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg> Chọn nhóm`;
   const menu = document.createElement('div');
   menu.className = 'group-dropdown-menu';
-  menu.style.cssText = 'max-height:200px;overflow-y:auto';
+  menu.style.cssText = 'max-height:240px;overflow-y:auto';
+  const menuItems = [];
   allGroups.forEach(g => {
     const selected = newProfileSelectedGroups.includes(g);
     const item = document.createElement('div');
@@ -1753,9 +1893,29 @@ function buildNewProfileGroupsUI() {
       menu.classList.remove('open');
       buildNewProfileGroupsUI();
     });
+    menuItems.push({ container: item, name: g, pick: () => item.click() });
     menu.appendChild(item);
   });
-  btn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('open'); });
+  addMenuTypeahead(menu, {
+    placeholder: 'Nhóm: gõ để tìm hoặc tạo mới...',
+    items: menuItems,
+    onCreate: async (name) => {
+      if (!allGroups.includes(name)) { allGroups = [...allGroups, name]; await window.app.saveGroups(allGroups); }
+      if (!newProfileSelectedGroups.includes(name)) newProfileSelectedGroups.push(name);
+      renderSidebar();
+      buildNewProfileGroupsUI();
+      showToast(`Đã tạo nhóm "${name}"`, 'success');
+    },
+  });
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const willOpen = !menu.classList.contains('open');
+    menu.classList.toggle('open');
+    if (willOpen) {
+      const ta = menu.querySelector('.menu-typeahead-input');
+      if (ta) setTimeout(() => { try { ta.focus(); } catch {} }, 20);
+    }
+  });
   wrap.appendChild(btn); wrap.appendChild(menu);
   row.appendChild(wrap);
 }
@@ -1807,15 +1967,47 @@ document.getElementById('btn-view-grid').addEventListener('click', () => setView
 document.getElementById('btn-view-list').addEventListener('click', () => setViewMode('list'));
 
 // ── Phím tắt toàn cục ─────────────────────────────────────
-// Ctrl+F: tìm kiếm · Ctrl+N: thêm Chrome · Ctrl+D: xóa mọi bộ lọc (về ban đầu)
-// Ctrl+Q: bật/tắt Cài đặt · Ctrl+R: quét lại
 function resetToInitialState() {
   activeSidebarFilter = null;
   clearSearchInput();
   renderSidebar();
   applyFilter();
 }
+function anyModalOpen() {
+  return Array.from(document.querySelectorAll('.modal-overlay')).some(m => !m.classList.contains('hidden'));
+}
+function closeAllModals() {
+  let closed = false;
+  document.querySelectorAll('.modal-overlay').forEach(m => {
+    if (!m.classList.contains('hidden')) { m.classList.add('hidden'); closed = true; }
+  });
+  return closed;
+}
+function toggleModalById(id, openFn) {
+  const el = document.getElementById(id);
+  if (!el.classList.contains('hidden')) el.classList.add('hidden'); else openFn();
+}
+
+// Danh sách phím tắt (dùng cho bảng "Phím tắt")
+const SHORTCUTS = [
+  { key: 'Ctrl + F', desc: 'Tìm kiếm Chrome theo tên' },
+  { key: 'Ctrl + N', desc: 'Thêm tài khoản Chrome mới' },
+  { key: 'Ctrl + O', desc: 'Chuyển hiển thị Thẻ ⇄ Hàng tinh gọn' },
+  { key: 'Ctrl + G', desc: 'Quản lý nhóm' },
+  { key: 'Ctrl + T', desc: 'Tối ưu dung lượng' },
+  { key: 'Ctrl + L', desc: 'Load Social Cache' },
+  { key: 'Ctrl + Q', desc: 'Mở / đóng Cài đặt' },
+  { key: 'Ctrl + R', desc: 'Quét lại danh sách' },
+  { key: 'Ctrl + D', desc: 'Xóa mọi bộ lọc / đóng mọi pop-up' },
+  { key: 'Esc', desc: 'Đóng mọi pop-up đang hiển thị' },
+];
+
 document.addEventListener('keydown', e => {
+  // Esc: đóng mọi pop-up đang mở
+  if (e.key === 'Escape') {
+    if (closeAllModals()) e.preventDefault();
+    return;
+  }
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
   const key = e.key.toLowerCase();
   switch (key) {
@@ -1831,21 +2023,45 @@ document.addEventListener('keydown', e => {
       break;
     case 'd':
       e.preventDefault();
-      resetToInitialState();
-      showToast('Đã xóa mọi bộ lọc — về trạng thái ban đầu','info');
+      // Có pop-up đang mở → đóng hết; nếu không → xóa mọi bộ lọc
+      if (anyModalOpen()) closeAllModals();
+      else { resetToInitialState(); showToast('Đã xóa mọi bộ lọc — về trạng thái ban đầu','info'); }
       break;
-    case 'q': {
+    case 'o':
       e.preventDefault();
-      const settingsOpen = !document.getElementById('modal-settings').classList.contains('hidden');
-      if (settingsOpen) closeSettingsModal(); else openSettingsModal();
+      setViewMode(viewMode === 'list' ? 'grid' : 'list');
       break;
-    }
+    case 'g':
+      e.preventDefault();
+      toggleModalById('modal-groups', openGroupModal);
+      break;
+    case 't':
+      e.preventDefault();
+      toggleModalById('modal-storage', openStorageModal);
+      break;
+    case 'l':
+      e.preventDefault();
+      backgroundScanSocial();
+      break;
+    case 'q':
+      e.preventDefault();
+      toggleModalById('modal-settings', openSettingsModal);
+      break;
     case 'r':
       e.preventDefault();
       scanProfiles();
       break;
   }
 });
+
+// ── Bảng phím tắt ─────────────────────────────────────────
+function openShortcutsModal() {
+  const list = document.getElementById('shortcuts-list');
+  if (list) list.innerHTML = SHORTCUTS.map(s =>
+    `<li class="shortcut-row"><kbd>${eh(s.key)}</kbd><span>${eh(s.desc)}</span></li>`).join('');
+  document.getElementById('modal-shortcuts').classList.remove('hidden');
+}
+function closeShortcutsModal() { document.getElementById('modal-shortcuts').classList.add('hidden'); }
 
 // Settings modal
 async function refreshCookieStoreStatus(settings) {
@@ -2003,6 +2219,11 @@ document.getElementById('modal-changelog-close').addEventListener('click', close
 document.getElementById('btn-close-changelog').addEventListener('click', closeChangelogModal);
 document.getElementById('modal-changelog').addEventListener('click', e => { if(e.target===e.currentTarget) closeChangelogModal(); });
 
+document.getElementById('btn-shortcuts').addEventListener('click', openShortcutsModal);
+document.getElementById('modal-shortcuts-close').addEventListener('click', closeShortcutsModal);
+document.getElementById('btn-close-shortcuts').addEventListener('click', closeShortcutsModal);
+document.getElementById('modal-shortcuts').addEventListener('click', e => { if(e.target===e.currentTarget) closeShortcutsModal(); });
+
 document.getElementById('btn-pick-folder').addEventListener('click', async () => {
   const chosen = await window.app.pickUserDataFolder();
   if (chosen) { showToast(`Đã chọn: ${chosen}`,'info'); scanProfiles(); }
@@ -2113,7 +2334,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (defProfile && allProfiles.some(p => p.profileDirectory === defProfile)) {
     bumpOpenCount(defProfile);
     window.app.openProfile(defProfile).then(res => {
-      if (res.success) showToast('Đã tự mở profile mặc định','info');
+      if (res.success && !res.alreadyOpen) showToast('Đã tự mở profile mặc định','info');
     });
   }
 

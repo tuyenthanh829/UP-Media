@@ -386,6 +386,12 @@ body{
 ::-webkit-scrollbar-thumb{background:var(--upm-grey);border-radius:10px}
 ::-webkit-scrollbar-thumb:hover{background:#9a9888}
 
+/* Thanh cuộn danh sách Chrome (khu vực chính) — dày gấp đôi cho dễ kéo */
+.main::-webkit-scrollbar{width:12px}
+.main::-webkit-scrollbar-track{background:rgba(0,0,0,.04);border-radius:10px}
+.main::-webkit-scrollbar-thumb{background:var(--upm-grey);border-radius:10px;border:2px solid transparent;background-clip:padding-box}
+.main::-webkit-scrollbar-thumb:hover{background:#9a9888;background-clip:padding-box}
+
 .text-muted{color:var(--muted)}
 
 /* ── View toggle (grid / list) ───────────────────────────── */
@@ -455,3 +461,19 @@ body{
 .changelog-ver{font-family:'Unbounded','Arial Black',sans-serif;font-size:14px;font-weight:700;color:var(--upm-green);margin-bottom:5px}
 .changelog-changes{list-style:disc;padding-left:18px;display:flex;flex-direction:column;gap:3px}
 .changelog-changes li{font-size:13px;line-height:1.45;color:var(--text)}
+
+/* ── Typeahead danh mục (nhóm / danh mục con) ─────────────── */
+.menu-typeahead{position:sticky;top:0;background:var(--card,#fff);padding:6px;border-bottom:1px solid var(--border);z-index:2;display:flex;flex-direction:column;gap:5px}
+.menu-typeahead-input{width:100%;box-sizing:border-box;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;outline:none;background:var(--bg,#fff);color:var(--text)}
+.menu-typeahead-input:focus{border-color:var(--upm-green)}
+.menu-typeahead-create{width:100%;box-sizing:border-box;padding:6px 9px;border:1px dashed var(--upm-green);border-radius:8px;background:rgba(14,90,42,.06);color:var(--upm-green);font-size:12px;font-weight:600;cursor:pointer;text-align:left}
+.menu-typeahead-create:hover{background:rgba(14,90,42,.12)}
+
+/* ── Bảng phím tắt ────────────────────────────────────────── */
+.shortcuts-list{list-style:none;display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto}
+.shortcut-row{display:flex;align-items:center;gap:12px;padding:7px 10px;background:var(--bg,#faf7f0);border:1px solid var(--border);border-radius:10px}
+.shortcut-row kbd{flex:0 0 120px;text-align:center;font-family:'Be Vietnam Pro',monospace;font-size:12px;font-weight:600;color:var(--upm-green);background:#fff;border:1px solid var(--upm-grey);border-bottom-width:2px;border-radius:6px;padding:4px 8px}
+.shortcut-row span{font-size:13px;color:var(--text)}
+
+/* ── Thẻ profile: gợi ý bấm vùng trắng để mở ──────────────── */
+.card-clickable .card-header{cursor:pointer}
