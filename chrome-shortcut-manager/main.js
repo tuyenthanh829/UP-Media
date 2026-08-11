@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, execFile } = require('child_process');
@@ -30,6 +30,62 @@ const social = require('./src/socialAccounts');
 
 let mainWindow;
 
+// ── Tự chạy dưới quyền Administrator (khắc phục lỗi thỉnh thoảng không bắt được Unikey) ──
+// Windows chỉ cho tiến trình gõ tiếng Việt vào cửa sổ CÙNG hoặc THẤP hơn mức toàn vẹn (UAC).
+// Chạy app ở mức Administrator giúp nó nhận được ký tự Unikey ổn định hơn.
+function isElevated() {
+  return new Promise(resolve => {
+    // "net session" chỉ chạy được khi có quyền Administrator → mã lỗi khác 0 nghĩa là chưa nâng quyền
+    exec('net session', { windowsHide: true }, err => resolve(!err));
+  });
+}
+
+// Trả về true nếu được phép tiếp tục chạy tiến trình hiện tại; false nếu đã relaunch bản nâng quyền và cần thoát.
+async function ensureElevated() {
+  if (process.platform !== 'win32') return true;
+  if (!app.isPackaged) return true;              // môi trường dev: bỏ qua để không lặp UAC
+  if (process.argv.includes('--elevated')) return true; // đã là bản được relaunch
+  // Cho phép người dùng tắt tính năng trong Cài đặt
+  const settings = configStore.getConfig().settings || {};
+  if (settings.autoElevate === false) return true;
+  if (await isElevated()) return true;
+
+  return new Promise(resolve => {
+    const exe = process.execPath.replace(/'/g, "''");
+    const psCmd = `Start-Process -FilePath '${exe}' -ArgumentList '--elevated' -Verb RunAs`;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psCmd], err => {
+      if (err) {
+        // Người dùng bấm "No" ở UAC (hoặc lỗi) → vẫn chạy tiếp bản thường để không mất phần mềm
+        resolve(true);
+      } else {
+        // Đã mở bản nâng quyền → đóng bản thường này
+        app.quit();
+        resolve(false);
+      }
+    });
+  });
+}
+
+// Menu tối giản: chỉ giữ nhóm "Chỉnh sửa" để phím Sao chép/Dán vẫn hoạt động,
+// đồng thời BỎ các phím tắt mặc định (Ctrl+R nạp lại, Ctrl+Q thoát) để nhường cho phím tắt trong app.
+function setupAppMenu() {
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'Chỉnh sửa',
+      submenu: [
+        { role: 'undo', label: 'Hoàn tác' },
+        { role: 'redo', label: 'Làm lại' },
+        { type: 'separator' },
+        { role: 'cut', label: 'Cắt' },
+        { role: 'copy', label: 'Sao chép' },
+        { role: 'paste', label: 'Dán' },
+        { role: 'selectAll', label: 'Chọn tất cả' },
+      ],
+    },
+  ]);
+  Menu.setApplicationMenu(menu);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -38,6 +94,7 @@ function createWindow() {
     minHeight: 640,
     title: 'Chrome Manager by UP Media',
     icon: path.join(__dirname, 'assets', 'icon.ico'),
+    autoHideMenuBar: true,   // Ẩn thanh menu (vẫn giữ phím Sao chép/Dán)
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -55,6 +112,10 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   configStore.init(app.getPath('userData'));
+
+  if (!(await ensureElevated())) return;   // đã relaunch bản Administrator → thoát bản thường
+
+  setupAppMenu();
   createWindow();
 
   // Khởi động localhost host cho tiện ích tự đóng gói; cập nhật lại URL theo port mới
@@ -711,6 +772,16 @@ ipcMain.handle('set-auto-launch', async (_, enabled) => {
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+// Bật/tắt tự chạy dưới quyền Administrator (mặc định BẬT)
+ipcMain.handle('get-auto-elevate', async () => {
+  const settings = configStore.getConfig().settings || {};
+  return settings.autoElevate !== false;
+});
+ipcMain.handle('set-auto-elevate', async (_, enabled) => {
+  const success = configStore.saveSettings({ autoElevate: !!enabled });
+  return { success };
 });
 
 ipcMain.handle('get-profile-history', async (_, profilePath) => {

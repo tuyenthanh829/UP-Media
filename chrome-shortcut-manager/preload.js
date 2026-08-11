@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('app', {
   clearAllCache: () => ipcRenderer.invoke('clear-all-cache'),
   getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
   setAutoLaunch: (enabled) => ipcRenderer.invoke('set-auto-launch', enabled),
+  getAutoElevate: () => ipcRenderer.invoke('get-auto-elevate'),
+  setAutoElevate: (enabled) => ipcRenderer.invoke('set-auto-elevate', enabled),
   listProfileExtensions: (profilePath) => ipcRenderer.invoke('list-profile-extensions', profilePath),
   countAllExtensions: () => ipcRenderer.invoke('count-all-extensions'),
   deleteExtensionEverywhere: (extId) => ipcRenderer.invoke('delete-extension-everywhere', extId),

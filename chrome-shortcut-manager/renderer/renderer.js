@@ -11,6 +11,10 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.51', items: [
+    'Tự chạy dưới quyền Administrator khi khởi động (khắc phục lỗi thỉnh thoảng không gõ được tiếng Việt/Unikey) — có thể tắt trong Cài đặt',
+    'Thêm phím tắt: Ctrl+F (tìm kiếm), Ctrl+N (thêm Chrome), Ctrl+D (xóa mọi bộ lọc), Ctrl+Q (Cài đặt), Ctrl+R (quét lại)',
+  ] },
   { v: '1.8.45', items: [
     'Cài extension Cookie Facebook cho tất cả Chrome bằng Web Store ID (ép cài, không cần Developer Mode)',
   ] },
@@ -1802,6 +1806,47 @@ function setViewMode(mode) {
 document.getElementById('btn-view-grid').addEventListener('click', () => setViewMode('grid'));
 document.getElementById('btn-view-list').addEventListener('click', () => setViewMode('list'));
 
+// ── Phím tắt toàn cục ─────────────────────────────────────
+// Ctrl+F: tìm kiếm · Ctrl+N: thêm Chrome · Ctrl+D: xóa mọi bộ lọc (về ban đầu)
+// Ctrl+Q: bật/tắt Cài đặt · Ctrl+R: quét lại
+function resetToInitialState() {
+  activeSidebarFilter = null;
+  clearSearchInput();
+  renderSidebar();
+  applyFilter();
+}
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+  const key = e.key.toLowerCase();
+  switch (key) {
+    case 'f': {
+      e.preventDefault();
+      const el = document.getElementById('search-input');
+      el.focus(); el.select();
+      break;
+    }
+    case 'n':
+      e.preventDefault();
+      openNewProfileModal();
+      break;
+    case 'd':
+      e.preventDefault();
+      resetToInitialState();
+      showToast('Đã xóa mọi bộ lọc — về trạng thái ban đầu','info');
+      break;
+    case 'q': {
+      e.preventDefault();
+      const settingsOpen = !document.getElementById('modal-settings').classList.contains('hidden');
+      if (settingsOpen) closeSettingsModal(); else openSettingsModal();
+      break;
+    }
+    case 'r':
+      e.preventDefault();
+      scanProfiles();
+      break;
+  }
+});
+
 // Settings modal
 async function refreshCookieStoreStatus(settings) {
   const input = document.getElementById('setting-cookie-store-id');
@@ -1832,17 +1877,24 @@ function openSettingsModal() {
     }).join('');
   sel.value = localStorage.getItem('upm_default_open_profile') || '';
   window.app.getAutoLaunch().then(v => { document.getElementById('setting-auto-launch').checked = !!v; });
+  window.app.getAutoElevate().then(v => { document.getElementById('setting-auto-elevate').checked = !!v; });
   window.app.getSettings().then(refreshCookieStoreStatus).catch(() => {});
   document.getElementById('modal-settings').classList.remove('hidden');
 }
 function closeSettingsModal() { document.getElementById('modal-settings').classList.add('hidden'); }
 async function saveSettings() {
   const auto = document.getElementById('setting-auto-launch').checked;
+  const elevate = document.getElementById('setting-auto-elevate').checked;
   const defProfile = document.getElementById('setting-default-profile').value;
   localStorage.setItem('upm_default_open_profile', defProfile);
   await window.app.setAutoLaunch(auto);
+  const prevElevate = await window.app.getAutoElevate();
+  await window.app.setAutoElevate(elevate);
   closeSettingsModal();
-  showToast('Đã lưu cài đặt','success');
+  if (elevate !== prevElevate)
+    showToast('Đã lưu. Khởi động lại phần mềm để áp dụng chế độ quyền Administrator.','success');
+  else
+    showToast('Đã lưu cài đặt','success');
 }
 document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
 document.getElementById('modal-settings-close').addEventListener('click', closeSettingsModal);
