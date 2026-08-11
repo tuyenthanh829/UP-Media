@@ -491,15 +491,16 @@ body{
 textarea.np-input{min-height:64px;line-height:1.5}
 .np-note{font-size:11.5px;line-height:1.6;color:var(--muted);background:var(--bg);border:1px dashed var(--border);border-radius:8px;padding:9px 12px}
 
-/* ── Dải icon bên trái danh sách Chrome ───────────────────── */
-.list-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;position:relative;z-index:20}
-.list-icon-wrap{position:relative;display:inline-flex}
-.list-icon-btn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:1.5px solid var(--border);background:var(--card);color:var(--upm-green);cursor:pointer;transition:all .15s}
-.list-icon-btn:hover{border-color:var(--upm-green);background:var(--upm-green-pale)}
-.list-icon-pop{position:absolute;top:calc(100% + 8px);left:0;width:300px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(14,90,42,.16);padding:12px;opacity:0;visibility:hidden;transform:translateY(-4px);transition:all .15s;z-index:60}
-.list-icon-wrap:hover .list-icon-pop{opacity:1;visibility:visible;transform:translateY(0)}
-.list-icon-pop-title{font-family:'Unbounded','Arial Black',sans-serif;font-size:12px;font-weight:700;color:var(--upm-green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
-.list-icon-pop .shortcuts-list{max-height:340px}
+/* ── Icon công cụ trên header (Phím tắt / Tiện ích UP Media) ─ */
+.header-right{display:flex;align-items:center;gap:14px}
+.header-tools{display:flex;align-items:center;gap:8px}
+.header-icon-wrap{position:relative;display:inline-flex}
+.header-icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;transition:all .15s}
+.header-icon-btn:hover{background:var(--upm-yellow);border-color:var(--upm-yellow);color:var(--upm-green)}
+.header-icon-pop{position:absolute;top:calc(100% + 10px);right:0;width:300px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(14,90,42,.22);padding:12px;opacity:0;visibility:hidden;transform:translateY(-4px);transition:all .15s;z-index:900}
+.header-icon-wrap:hover .header-icon-pop{opacity:1;visibility:visible;transform:translateY(0)}
+.header-icon-pop-title{font-family:'Unbounded','Arial Black',sans-serif;font-size:12px;font-weight:700;color:var(--upm-green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.header-icon-pop .shortcuts-list{max-height:min(60vh,360px)}
 
 /* ── Dropdown "Chức năng" trên toolbar ────────────────────── */
 .toolbar-menu{position:relative;display:inline-flex}

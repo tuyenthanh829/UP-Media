@@ -4,6 +4,28 @@ Tất cả thay đổi theo từng phiên bản.
 
 ---
 
+## v1.8.54
+- Chuyển icon **"Phím tắt"** và **"Tiện ích UP Media"** lên thanh header (cạnh cụm thống kê) cho gọn, dễ thấy.
+
+## v1.8.53
+- Thiết kế lại pop-up **"Tạo tài khoản Chrome mới"**: rộng hơn (640px), bố cục xếp dọc thoáng, hết chồng chéo.
+- Gộp **Tạo tất cả shortcut / Tối ưu dung lượng / Đóng Chrome** vào menu **"Chức năng"** trên toolbar.
+- Phím tắt chuyển thành **icon** (rê chuột xem nhanh) + thêm **Ctrl+~** mở bảng phím tắt.
+- Thêm **"Tiện ích UP Media trên Store"**: danh sách extension chính thức, mở bằng trình duyệt (extension đầu tiên: UP Media - Cookie Facebook). Danh sách dạng dữ liệu để dễ thêm về sau.
+- Đồng bộ giao diện mục **"Lọc nhóm"** theo **"Lọc đăng nhập"** (icon/chấm màu + tên + số đếm, cùng font).
+
+## v1.8.52
+- **Typeahead danh mục:** gõ tên để lọc nhóm/danh mục con có sẵn hoặc **tạo mới** ngay (tự lưu & đồng bộ). Áp dụng cả trên thẻ lẫn pop-up thêm tài khoản.
+- **Bấm vùng trắng của thẻ** để mở Chrome (không cần đúng nút "Mở").
+- **Chống mở trùng:** khi quét lại / mở hàng loạt / mở mặc định lúc khởi động, bỏ qua các Chrome đang mở sẵn.
+- **Esc / Ctrl+D** đóng mọi pop-up.
+- Thêm phím tắt **Ctrl+O** (đổi kiểu hiển thị), **Ctrl+G** (nhóm), **Ctrl+T** (dung lượng), **Ctrl+L** (load Social); thêm nút/bảng danh sách phím tắt.
+- Thanh cuộn danh sách Chrome dày hơn (dễ kéo).
+
+## v1.8.51
+- **Tự chạy dưới quyền Administrator** khi khởi động (khắc phục lỗi thỉnh thoảng không gõ được tiếng Việt/Unikey) — có thể tắt trong Cài đặt.
+- Thêm phím tắt: **Ctrl+F** (tìm kiếm), **Ctrl+N** (thêm Chrome), **Ctrl+D** (xóa bộ lọc), **Ctrl+Q** (Cài đặt), **Ctrl+R** (quét lại).
+
 ## v1.8.42
 - Extension cookie: thêm ô textarea xem/sửa cookie, nút Lấy / Copy / Đăng nhập bằng cookie (nhập), khử trùng lặp cho chuỗi cookie chuẩn.
 

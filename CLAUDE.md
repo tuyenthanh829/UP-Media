@@ -583,3 +583,39 @@ window.app.pickUserDataFolder()                     // Dialog chọn thư mục
 
 ### Constraint mới
 - Chrome 137+ chặn `--load-extension`; Chrome 130+ tắt CDP. Force-install self-host localhost KHÔNG được Chrome chấp nhận ổn định → khuyến nghị dùng **Chrome Web Store Unlisted + ExtensionInstallForcelist**.
+
+---
+
+## 14. CẬP NHẬT v1.8.50 → v1.8.54 (phiên nâng cấp UI/UX + Admin + phím tắt)
+
+> Version hiện tại: **v1.8.54+**. Bổ sung cho mục 13.
+
+### 14.1 Tự chạy dưới quyền Administrator (khắc phục Unikey)
+- `main.js`: `isElevated()` chạy `net session` (khác 0 = chưa nâng quyền); `ensureElevated()` relaunch qua PowerShell `Start-Process -FilePath <exe> -ArgumentList '--elevated' -Verb RunAs`. Bấm "No" ở UAC → chạy tiếp bản thường (không mất app). Chỉ áp dụng khi `app.isPackaged`, bỏ qua nếu có `--elevated` hoặc `settings.autoElevate === false`.
+- Menu app thay bằng `setupAppMenu()` chỉ còn nhóm "Chỉnh sửa" (undo/redo/cut/copy/paste/selectAll) + `autoHideMenuBar:true` → giải phóng Ctrl+R/Ctrl+Q cho app mà vẫn giữ Copy/Dán.
+- IPC: `get-auto-elevate` / `set-auto-elevate`. Toggle trong Cài đặt (`#setting-auto-elevate`). Đổi chế độ cần khởi động lại app.
+
+### 14.2 Phím tắt (renderer.js — mảng `SHORTCUTS`)
+Ctrl+F tìm kiếm · Ctrl+N thêm Chrome · Ctrl+O đổi kiểu hiển thị · Ctrl+G nhóm · Ctrl+T dung lượng · Ctrl+L load Social · Ctrl+Q Cài đặt · Ctrl+R quét lại · Ctrl+D xóa bộ lọc / đóng pop-up · Ctrl+~ bảng phím tắt · Esc đóng pop-up. Xử lý trong 1 listener `keydown`; `closeAllModals()` / `anyModalOpen()` / `toggleModalById()`. Ctrl+~ (có Shift) xử lý trước nhánh bail shift.
+
+### 14.3 Icon header + popover
+- 2 icon trên **header** (`.header-right > .header-tools`): "Phím tắt" (`#btn-shortcuts`) và "Tiện ích UP Media" (`#btn-upm-exts`). Style nền xanh `.header-icon-btn`, hover vàng. Rê chuột icon Phím tắt → popover `.header-icon-pop` (render từ `SHORTCUTS`).
+
+### 14.4 Tiện ích UP Media trên Store
+- Modal `#modal-upm-exts`, dữ liệu mảng `UPMEDIA_EXTENSIONS = [{name, desc, type, url}]` (renderer.js) — thêm tiện ích/tài liệu mới chỉ cần thêm 1 object. Mở link qua IPC `open-external` → `shell.openExternal` (chỉ chấp nhận `https://`). Tiện ích đầu: UP Media - Cookie Facebook (`bkdigiggjmpomfoeafbbgpipjennbhen`).
+
+### 14.5 Typeahead danh mục (nhóm cha + con)
+- Helper `addMenuTypeahead(menu, {placeholder, items, onCreate})`: chèn ô input lọc lên đầu menu, Enter/click chọn mục khớp, không khớp → nút "Tạo mới" gọi `onCreate`. Dùng ở `buildGroupTags()` (thẻ) và `buildNewProfileGroupsUI()` (pop-up thêm tài khoản), cho cả nhóm cha lẫn danh mục con. `onCreate` tự `saveGroups`/`saveGroupSubs` + gán vào profile + `renderSidebar()`.
+
+### 14.6 Chống mở trùng Chrome
+- `getRunningProfileDirs()` (main.js) parse `wmic process ... get CommandLine` → Set profile-directory đang mở. `open-profile` bỏ qua nếu đang chạy (trả `alreadyOpen:true`, trừ khi `opts.force`); `open-profiles-batch` bỏ qua + đếm `skipped`. IPC phụ `get-running-profiles`. Áp dụng cho mở đơn, mở hàng loạt, và mở profile mặc định lúc khởi động.
+
+### 14.7 Thẻ & toolbar
+- Bấm vùng trắng thẻ mở Chrome: `.card-clickable` + handler loại trừ `button, input, textarea, select, a, label, .group-dropdown, .groups-row, .account-badges, .card-actions, .card-form, .cache-info, .notes-section, .card-status`. Helper chung `openProfileFromUI(dir, card)`.
+- Dropdown "Chức năng" (`#func-menu-wrap` / `.toolbar-menu`) gộp: Tạo tất cả shortcut, Tối ưu dung lượng, Đóng Chrome (giữ nguyên id nút để binding cũ chạy).
+- Pop-up "Tạo tài khoản" thiết kế lại: `.modal-newprofile` (640px) + `.np-*` xếp dọc thoáng.
+- Sidebar "Lọc nhóm" đồng bộ theo "Lọc đăng nhập": `.group-dot.gc-*` (chấm màu) + tên thường + count, cùng font. "Tất cả"/"Chưa có nhóm" có icon dẫn đầu.
+- Thanh cuộn `.main` dày 12px.
+
+### IPC handlers mới (main.js) — bổ sung
+`get-running-profiles`, `get-auto-elevate`, `set-auto-elevate`, `open-external`.

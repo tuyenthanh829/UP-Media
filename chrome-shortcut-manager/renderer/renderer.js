@@ -11,6 +11,9 @@ let extCountCache = null; // { dir: số tiện ích } — tải khi vào chế 
 
 // ── Changelog — lịch sử phiên bản (mới nhất lên đầu) ──────
 const CHANGELOG = [
+  { v: '1.8.54', items: [
+    'Chuyển icon "Phím tắt" và "Tiện ích UP Media" lên thanh header (cạnh cụm thống kê) cho gọn và dễ thấy',
+  ] },
   { v: '1.8.53', items: [
     'Thiết kế lại pop-up "Tạo tài khoản Chrome mới": rộng & thoáng hơn, hết chồng chéo',
     'Gộp "Tạo tất cả shortcut / Tối ưu dung lượng / Đóng Chrome" vào menu "Chức năng" cho gọn toolbar',
