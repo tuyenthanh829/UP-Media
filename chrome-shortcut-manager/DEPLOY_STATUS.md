@@ -25,6 +25,15 @@
 - [x] Copy/Dán trong ô cookie vẫn hoạt động (sau khi rút gọn menu app)
 - [ ] Luồng nhập tiện ích ngoài store (self-host CRX) — _chưa test riêng, không nằm trong nhóm nghiệm thu v1.8.56_
 
+## ⚠️ Ghi chú: tag Release cũ trỏ SAI commit (đã biết — quyết định KHÔNG sửa)
+
+Default branch của repo không phải `main` (là một nhánh `claude/*`), nên các tag `v1.8.26`–`v1.8.56` bị GitHub gắn vào **commit ngoài main** (vd commit "Document online quiz…"), không phải commit bump version.
+
+- **File `.exe` đính kèm mỗi Release vẫn ĐÚNG & chạy được** — chỉ "Source code (zip)" trên trang Release là trỏ sai.
+- **Commit nguồn ĐÚNG của từng bản = commit `chore: bump version to vX` trên `main`.** Bản đang dùng thật: **v1.8.56 = `13a9b25`** (xem bảng đầu file).
+- Đã sửa workflow (`target_commitish` trỏ commit bump trên main) → **từ v1.8.57 trở đi tag tự trỏ đúng.**
+- Quyết định (11/08/2026): **giữ nguyên tag cũ** (phương án pragmatic) — không rollback theo tag cũ; nếu cần checkout source bản cũ thì dùng commit bump tương ứng trên `main`, không dùng tag.
+
 ## Cách lấy thông tin điền bảng
 - **Version/Release:** xem tag Release mới nhất trên GitHub, hoặc số version ở header app (bấm để xem lịch sử).
 - **Commit:** `git log -1 --oneline` tại thời điểm build (hoặc dòng cuối trong Release).
