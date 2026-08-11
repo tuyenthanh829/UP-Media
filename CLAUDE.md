@@ -15,6 +15,7 @@
 - **Bàn giao/định hướng → `HANDOFF_V2.md`**. Quy trình phát hành → `.claude/skills/ship-upmedia/SKILL.md`.
 - **Nội dung cũ / tính năng đã gỡ → `HISTORY.md`** (đã tách khỏi tài liệu này).
 - **Bản đang cài & nghiệm thu thật → `DEPLOY_STATUS.md`** (repo/Release mới nhất ≠ đã nghiệm thu).
+- **AI khác không phải Claude (Codex…) → đọc `AGENTS.md` ở repo root** (điểm vào cho agent khác; cùng trỏ về đúng bộ nguồn/quy trình này — giữ 2 file nhất quán khi cập nhật).
 
 **Những điểm đã THAY ĐỔI so với mô tả ở các mục cũ (đừng làm theo mục cũ):**
 - **"Dọn tiện ích McAfee/IDM" (Mục 3.7) ĐÃ GỠ**, thay bằng Quản lý tiện ích tổng quát (xóa/nhân bản/bỏ chặn — Mục 13). `EXEMPT_NAMES` (Mục 8.1) **KHÔNG còn hiệu lực bắt buộc**.
